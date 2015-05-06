@@ -128,7 +128,8 @@ class PBSJobRunner( AsynchronousJobRunner ):
 
         # Determine the the PBS server
         url_split = url.split("/")
-        server = url_split[2]
+        log.debug("Found url: %s and split: %s" % (url, url_split))
+        server = "m2.karst.uits.iu.edu"#url_split[2]
         if server == '':
             server = self.default_pbs_server
         if server is None:
@@ -136,7 +137,7 @@ class PBSJobRunner( AsynchronousJobRunner ):
 
         # Determine the queue, set the PBS destination (not the same thing as a Galaxy job destination)
         pbs_destination = '@%s' % server
-        pbs_queue = url_split[3] or None
+        pbs_queue = "trinity"#url_split[3] or None
         if pbs_queue is not None:
             pbs_destination = '%s%s' % (pbs_queue, pbs_destination)
 
@@ -200,7 +201,13 @@ class PBSJobRunner( AsynchronousJobRunner ):
     def __get_pbs_server(self, job_destination_params):
         if job_destination_params is None:
             return None
-        return job_destination_params['destination'].split('@')[-1]
+        try: 
+            return job_destination_params['destination'].split('@')[-1]            
+        except KeyError: 
+            try: 
+                return job_destination_params['-q'].split('@')[-1]
+            except KeyError:             
+                return None
 
     def queue_job( self, job_wrapper ):
         """Create PBS script for a job and submit it to the PBS queue"""
@@ -241,7 +248,7 @@ class PBSJobRunner( AsynchronousJobRunner ):
         if c <= 0:
             errno, text = pbs.error()
             job_wrapper.fail( "Unable to queue job for execution.  Resubmitting the job may succeed." )
-            log.error( "Connection to PBS server for submit failed: %s: %s" % ( errno, text ) )
+#            log.error( "Connection to PBS server for submit failed: %s: %s" % ( errno, text ) )
             return
 
         # define job attributes
@@ -366,7 +373,7 @@ class PBSJobRunner( AsynchronousJobRunner ):
         ( failures, statuses ) = self.check_all_jobs()
         for pbs_job_state in self.watched:
             job_id = pbs_job_state.job_id
-            #galaxy_job_id = pbs_job_state.job_wrapper.job_id
+           #galaxy_job_id = pbs_job_state.job_wrapper.job_id
             galaxy_job_id = pbs_job_state.job_wrapper.get_id_tag()
             old_state = pbs_job_state.old_state
             pbs_server_name = self.__get_pbs_server(pbs_job_state.job_destination.params)
@@ -382,7 +389,7 @@ class PBSJobRunner( AsynchronousJobRunner ):
                 try:
                     # Recheck to make sure it wasn't a communication problem
                     self.check_single_job( pbs_server_name, job_id )
-                    log.warning( "(%s/%s) PBS job was not in state check list, but was found with individual state check" % ( galaxy_job_id, job_id ) )
+                    #log.warning( "(%s/%s) PBS job was not in state check list, but was found with individual state check" % ( galaxy_job_id, job_id ) )
                     new_watched.append( pbs_job_state )
                 except:
                     errno, text = pbs.error()
@@ -441,13 +448,17 @@ class PBSJobRunner( AsynchronousJobRunner ):
         statuses = {}
         for pbs_job_state in self.watched:
             pbs_server_name = self.__get_pbs_server(pbs_job_state.job_destination.params)
+            # Hack
+            if pbs_server_name is None:
+                pbs_server_name = "m2.karst.uits.iu.edu"
             if pbs_server_name not in servers:
                 servers.append( pbs_server_name )
             pbs_job_state.check_count += 1
         for pbs_server_name in servers:
+#            log.debug("Found server :%s" % pbs_server_name)
             c = pbs.pbs_connect( util.smart_str( pbs_server_name ) )
             if c <= 0:
-                log.debug("connection to PBS server %s for state check failed" % pbs_server_name )
+                #log.debug("connection to PBS server %s for state check failed" % pbs_server_name )
                 failures.append( pbs_server_name )
                 continue
             stat_attrl = pbs.new_attrl(3)
@@ -480,7 +491,7 @@ class PBSJobRunner( AsynchronousJobRunner ):
         """
         c = pbs.pbs_connect( util.smart_str( pbs_server_name ) )
         if c <= 0:
-            log.debug("connection to PBS server %s for state check failed" % pbs_server_name )
+        #    log.debug("connection to PBS server %s for state check failed" % pbs_server_name )
             return None
         stat_attrl = pbs.new_attrl(1)
         stat_attrl[0].name = pbs.ATTR_state

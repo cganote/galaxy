@@ -6,6 +6,8 @@ import os
 
 from galaxy.util.json import dumps
 from galaxy.util import bunch
+import logging
+log = logging.getLogger( __name__ )
 
 class ProvidesAppContext( object ):
     """ For transaction-like objects to provide Galaxy convience layer for
@@ -138,6 +140,7 @@ class ProvidesUserContext( object ):
 
     @property
     def user_ftp_dir( self ):
+        log.debug("Found ftp configs: dir is %s and subdir is %s" % (self.app.config.ftp_upload_dir, self.app.config.ftp_upload_subdir))
         identifier = self.app.config.ftp_upload_dir_identifier
         if self.app.config.ftp_upload_subdir is None:
             return os.path.join( self.app.config.ftp_upload_dir, getattr(self.user, identifier) )

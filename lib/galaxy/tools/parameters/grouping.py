@@ -4,7 +4,7 @@ Constructs for grouping tool parameters
 
 import logging
 log = logging.getLogger( __name__ )
-
+import pprint
 import os
 import StringIO
 import unicodedata
@@ -320,6 +320,7 @@ class UploadDataset( Group ):
             file_bunch.uuid = uuid
             return file_bunch, warnings
         def get_filenames( context ):
+            print context
             rval = []
             data_file = context['file_data']
             url_paste = context['url_paste']
@@ -349,6 +350,7 @@ class UploadDataset( Group ):
             # look for files uploaded via FTP
             valid_files = []
             if ftp_files is not None:
+#                log.debug("Great, found ftp_files: %s" % ftp_files)
                 # Normalize input paths to ensure utf-8 encoding is normal form c.
                 # This allows for comparison when the filesystem uses a different encoding than the browser.
                 ftp_files = [unicodedata.normalize('NFC', f) for f in ftp_files if isinstance(f, unicode)]
@@ -359,18 +361,23 @@ class UploadDataset( Group ):
                 else:
                     user_ftp_dir = trans.user_ftp_dir
                     for ( dirpath, dirnames, filenames ) in os.walk( user_ftp_dir ):
-                        for filename in filenames:
+                        for filename in filenames:                            
                             path = relpath( os.path.join( dirpath, filename ), user_ftp_dir )
+                            log.debug("Found path: %s" % path)
                             if not os.path.islink( os.path.join( dirpath, filename ) ):
                                 # Normalize filesystem paths
                                 if isinstance(path, unicode):
                                     valid_files.append(unicodedata.normalize('NFC', path ))
                                 else:
                                     valid_files.append(path)
+                            else:
+                                log.debug("Apparently islink %s" % os.path.join( dirpath, filename ))
 
             else:
                 ftp_files = []
             for ftp_file in ftp_files:
+#                print "valid fiels are now",valid_files
+#                print "ftp file is",ftp_file
                 if ftp_file not in valid_files:
                     log.warning( 'User passed an invalid file path in ftp_files: %s' % ftp_file )
                     continue

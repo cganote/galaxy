@@ -37,7 +37,7 @@
        as well. -->
   <!-- <env variables="HOSTNAME,SLURM_CPUS_ON_NODE,SLURM_JOBID" /> -->
 
-  <!-- <collectl /> -->
+   <collectl /> 
   <!-- Collectl (http://collectl.sourceforge.net/) is a powerful monitoring
        utility capable of gathering numerous system and process level
        statistics of running applications. The Galaxy collectl job metrics

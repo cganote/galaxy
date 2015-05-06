@@ -88,7 +88,11 @@ class RemoteFilesAPIController( BaseAPIController ):
             try:
                 user_ftp_dir = None
                 identifier = trans.app.config.ftp_upload_dir_identifier
-                user_ftp_dir = os.path.join( user_ftp_base_dir, getattr(trans.user, identifier) )
+                subdir = trans.app.config.ftp_upload_subdir
+                if subdir is None:
+                    user_ftp_dir = os.path.join( user_ftp_base_dir, getattr(trans.user, identifier) )
+                else:
+                    user_ftp_dir = os.path.join( user_ftp_base_dir, getattr(trans.user, identifier), subdir )           
                 if user_ftp_dir is not None:
                     response = self.__load_all_filenames( user_ftp_dir )
                 else:

@@ -1,7 +1,7 @@
 #!/bin/sh
 
 cd `dirname $0`
-
+source .vmenv
 # If there is a .venv/ directory, assume it contains a virtualenv that we
 # should run this instance in.
 if [ -d .venv ];
