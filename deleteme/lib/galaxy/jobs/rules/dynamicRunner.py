@@ -1,0 +1,1 @@
+/N/dc2/projects/galaxyshared/trinity/colodev/galconf/dynamicRunner.py

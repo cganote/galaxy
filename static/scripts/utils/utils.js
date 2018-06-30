@@ -1,2 +1,408 @@
-define(["libs/underscore"],function(a){function b(a,c){for(var d in a){var e=a[d];e&&"object"==typeof e&&(c(e),b(e,c))}}function c(a){return $("<div/>").text(a).html()}function d(a){if(a instanceof Array||(a=[a]),0===a.length)return!1;for(var b in a)if(["__null__","__undefined__","None",null,void 0].indexOf(a[b])>-1)return!1;return!0}function e(a){var a=a.toString();if(a){a=a.replace(/,/g,", ");var b=a.lastIndexOf(", ");return-1!=b&&(a=a.substr(0,b)+" or "+a.substr(b+1)),a}return""}function f(a){top.__utils__get__=top.__utils__get__||{},a.cache&&top.__utils__get__[a.url]?(a.success&&a.success(top.__utils__get__[a.url]),console.debug("utils.js::get() - Fetching from cache ["+a.url+"].")):g({url:a.url,data:a.data,success:function(b){top.__utils__get__[a.url]=b,a.success&&a.success(b)},error:function(b){a.error&&a.error(b)}})}function g(a){var b={contentType:"application/json",type:a.type||"GET",data:a.data||{},url:a.url};"GET"==b.type||"DELETE"==b.type?(b.url+=-1==b.url.indexOf("?")?"?":"&",b.url=b.url+$.param(b.data,!0),b.data=null):(b.dataType="json",b.url=b.url,b.data=JSON.stringify(b.data)),$.ajax(b).done(function(b){if("string"==typeof b)try{b=b.replace("Infinity,",'"Infinity",'),b=jQuery.parseJSON(b)}catch(c){console.debug(c)}a.success&&a.success(b)}).fail(function(b){var c=null;try{c=jQuery.parseJSON(b.responseText)}catch(d){c=b.responseText}a.error&&a.error(c,b)})}function h(a,b){var c=$('<div class="'+a+'"></div>');c.appendTo(":eq(0)");var d=c.css(b);return c.remove(),d}function i(a){$('link[href^="'+a+'"]').length||$('<link href="'+galaxy_config.root+a+'" rel="stylesheet">').appendTo("head")}function j(b,c){return b?a.defaults(b,c):c}function k(a,b){var c="";if(a>=1e11)a/=1e11,c="TB";else if(a>=1e8)a/=1e8,c="GB";else if(a>=1e5)a/=1e5,c="MB";else if(a>=100)a/=100,c="KB";else{if(!(a>0))return"<strong>-</strong>";a=10*a,c="b"}var d=Math.round(a)/10;return b?d+" "+c:"<strong>"+d+"</strong> "+c}function l(){return top.__utils__uid__=top.__utils__uid__||0,"uid-"+top.__utils__uid__++}function m(){var a=new Date,b=(a.getHours()<10?"0":"")+a.getHours(),c=(a.getMinutes()<10?"0":"")+a.getMinutes(),d=a.getDate()+"/"+(a.getMonth()+1)+"/"+a.getFullYear()+", "+b+":"+c;return d}return{cssLoadFile:i,cssGetAttribute:h,get:f,merge:j,bytesToString:k,uid:l,time:m,request:g,sanitize:c,textify:e,validate:d,deepeach:b}});
+define("utils/utils", ["exports", "utils/localization", "underscore"], function(exports, _localization, _underscore) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+    exports.iframe = iframe;
+    exports.deepeach = deepeach;
+    exports.linkify = linkify;
+    exports.clone = clone;
+    exports.isJSON = isJSON;
+    exports.sanitize = sanitize;
+    exports.isEmpty = isEmpty;
+    exports.textify = textify;
+    exports.get = get;
+    exports.request = request;
+    exports.cssGetAttribute = cssGetAttribute;
+    exports.cssLoadFile = cssLoadFile;
+    exports.merge = merge;
+    exports.roundToDecimalPlaces = roundToDecimalPlaces;
+    exports.bytesToString = bytesToString;
+    exports.uid = uid;
+    exports.time = time;
+    exports.appendScriptStyle = appendScriptStyle;
+    exports.getQueryString = getQueryString;
+    exports.setWindowTitle = setWindowTitle;
+
+    var _localization2 = _interopRequireDefault(_localization);
+
+    var _ = _interopRequireWildcard(_underscore);
+
+    function _interopRequireWildcard(obj) {
+        if (obj && obj.__esModule) {
+            return obj;
+        } else {
+            var newObj = {};
+
+            if (obj != null) {
+                for (var key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key];
+                }
+            }
+
+            newObj.default = obj;
+            return newObj;
+        }
+    }
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    /* global $ */
+    /* global Galaxy */
+
+    /** Builds a basic iframe */
+    /**
+     * Galaxy utilities comprises small functions, which at this point
+     * do not require their own classes/files
+     */
+    function iframe(src) {
+        return "<iframe src=\"" + src + "\" frameborder=\"0\" style=\"width: 100%; height: 100%;\"/>";
+    }
+
+    /** Traverse through json */
+    function deepeach(dict, callback) {
+        for (var i in dict) {
+            var d = dict[i];
+            if (_.isObject(d)) {
+                var new_dict = callback(d);
+                if (new_dict) {
+                    dict[i] = new_dict;
+                }
+                deepeach(d, callback);
+            }
+        }
+    }
+
+    /** Identifies urls and replaces them with anchors */
+    function linkify(inputText) {
+        var replacedText;
+        var replacePattern1;
+        var replacePattern2;
+        var replacePattern3;
+
+        // URLs starting with http://, https://, or ftp://
+        replacePattern1 = /(\b(https?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gim;
+        replacedText = inputText.replace(replacePattern1, '<a href="$1" target="_blank">$1</a>');
+
+        // URLs starting with "www." (without // before it, or it'd re-link the ones done above).
+        replacePattern2 = /(^|[^\/])(www\.[\S]+(\b|$))/gim;
+        replacedText = replacedText.replace(replacePattern2, '$1<a href="http://$2" target="_blank">$2</a>');
+
+        // Change email addresses to mailto:: links.
+        replacePattern3 = /(([a-zA-Z0-9\-\_\.])+@[a-zA-Z\_]+?(\.[a-zA-Z]{2,6})+)/gim;
+        replacedText = replacedText.replace(replacePattern3, '<a href="mailto:$1">$1</a>');
+
+        return replacedText;
+    }
+
+    /** Clone */
+    function clone(obj) {
+        return JSON.parse(JSON.stringify(obj) || null);
+    }
+
+    /**
+     * Check if a string is a json string
+     * @param{String}   text - Content to be validated
+     */
+    function isJSON(text) {
+        return (/^[\],:{}\s]*$/.test(text.replace(/\\["\\\/bfnrtu]/g, "@").replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g, "]").replace(/(?:^|:|,)(?:\s*\[)+/g, "")));
+    }
+
+    /**
+     * Sanitize/escape a string
+     * @param{String}   content - Content to be sanitized
+     */
+    function sanitize(content) {
+        return $("<div/>").text(content).html();
+    }
+
+    /**
+     * Checks if a value or list of values is `empty`
+     * usually used for selectable options
+     * @param{String}   value - Value or list to be validated
+     */
+    function isEmpty(value) {
+        if (!(value instanceof Array)) {
+            value = [value];
+        }
+        if (value.length === 0) {
+            return true;
+        }
+        for (var i in value) {
+            if (["__null__", "__undefined__", null, undefined].indexOf(value[i]) > -1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Convert list to pretty string
+     * @param{String}   lst - List of strings to be converted in human readable list sentence
+     */
+    function textify(lst) {
+        if ($.isArray(lst)) {
+            lst = lst.toString().replace(/,/g, ", ");
+            var pos = lst.lastIndexOf(", ");
+            if (pos != -1) {
+                lst = lst.substr(0, pos) + " or " + lst.substr(pos + 2);
+            }
+            return lst;
+        }
+        return "";
+    }
+
+    /**
+     * Request handler for GET
+     * @param{String}   url     - Url request is made to
+     * @param{Function} success - Callback on success
+     * @param{Function} error   - Callback on error
+     * @param{Boolean}  cache   - Use cached data if available
+     */
+    function get(options) {
+        top.__utils__get__ = top.__utils__get__ || {};
+        var cache_key = JSON.stringify(options);
+        if (options.cache && top.__utils__get__[cache_key]) {
+            if (options.success) {
+                options.success(top.__utils__get__[cache_key]);
+            }
+            window.console.debug("utils.js::get() - Fetching from cache [" + options.url + "].");
+        } else {
+            request({
+                url: options.url,
+                data: options.data,
+                success: function success(response) {
+                    top.__utils__get__[cache_key] = response;
+                    if (options.success) {
+                        options.success(response);
+                    }
+                },
+                error: function error(response, status) {
+                    if (options.error) {
+                        options.error(response, status);
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Request handler
+     * @param{String}   method  - Request method ['GET', 'POST', 'DELETE', 'PUT']
+     * @param{String}   url     - Url request is made to
+     * @param{Object}   data    - Data send to url
+     * @param{Function} success - Callback on success
+     * @param{Function} error   - Callback on error
+     */
+    function request(options) {
+        // prepare ajax
+        var ajaxConfig = {
+            contentType: "application/json",
+            type: options.type || "GET",
+            data: options.data || {},
+            url: options.url
+        };
+        // encode data into url
+        if (ajaxConfig.type == "GET" || ajaxConfig.type == "DELETE") {
+            if (!$.isEmptyObject(ajaxConfig.data)) {
+                ajaxConfig.url += ajaxConfig.url.indexOf("?") == -1 ? "?" : "&";
+                ajaxConfig.url += $.param(ajaxConfig.data, true);
+            }
+            ajaxConfig.data = null;
+        } else {
+            ajaxConfig.dataType = "json";
+            ajaxConfig.url = ajaxConfig.url;
+            ajaxConfig.data = JSON.stringify(ajaxConfig.data);
+        }
+
+        // make request
+        $.ajax(ajaxConfig).done(function(response) {
+            if (typeof response === "string") {
+                try {
+                    response = response.replace("Infinity,", '"Infinity",');
+                    response = $.parseJSON(response);
+                } catch (e) {
+                    console.debug(e);
+                }
+            }
+            if (options.success) {
+                options.success(response);
+            }
+        }).fail(function(response) {
+            var response_text = null;
+            try {
+                response_text = $.parseJSON(response.responseText);
+            } catch (e) {
+                response_text = response.responseText;
+            }
+            if (options.error) {
+                options.error(response_text, response.status);
+            }
+        }).always(function() {
+            if (options.complete) {
+                options.complete();
+            }
+        });
+    }
+
+    /**
+     * Read a property value from CSS
+     * @param{String}   classname   - CSS class
+     * @param{String}   name        - CSS property
+     */
+    function cssGetAttribute(classname, name) {
+        var el = $("<div class=\"" + classname + "\"></div>");
+        el.appendTo(":eq(0)");
+        var value = el.css(name);
+        el.remove();
+        return value;
+    }
+
+    /**
+     * Load a CSS file
+     * @param{String}   url - Url of CSS file
+     */
+    function cssLoadFile(url) {
+        if (!$("link[href^=\"" + url + "\"]").length) {
+            $("<link href=\"" + Galaxy.root + url + "\" rel=\"stylesheet\">").appendTo("head");
+        }
+    }
+
+    /**
+     * Safely merge to dictionaries
+     * @param{Object}   options         - Target dictionary
+     * @param{Object}   optionsDefault  - Source dictionary
+     */
+    function merge(options, optionsDefault) {
+        if (options) {
+            return _.defaults(options, optionsDefault);
+        } else {
+            return optionsDefault;
+        }
+    }
+
+    /**
+     * Round floaing point 'number' to 'numPlaces' number of decimal places.
+     * @param{Object}   number      a floaing point number
+     * @param{Object}   numPlaces   number of decimal places
+     */
+    function roundToDecimalPlaces(number, numPlaces) {
+        var placesMultiplier = 1;
+        for (var i = 0; i < numPlaces; i++) {
+            placesMultiplier *= 10;
+        }
+        return Math.round(number * placesMultiplier) / placesMultiplier;
+    }
+
+    // calculate on import
+    var kb = 1024;
+
+    var mb = kb * kb;
+    var gb = mb * kb;
+    var tb = gb * kb;
+    /**
+     * Format byte size to string with units
+     * @param{Integer}   size           - Size in bytes
+     * @param{Boolean}   normal_font    - Switches font between normal and bold
+     */
+    function bytesToString(size, normal_font, numberPlaces) {
+        numberPlaces = numberPlaces !== undefined ? numberPlaces : 1;
+        // identify unit
+        var unit = "";
+        if (size >= tb) {
+            size = size / tb;
+            unit = "TB";
+        } else if (size >= gb) {
+            size = size / gb;
+            unit = "GB";
+        } else if (size >= mb) {
+            size = size / mb;
+            unit = "MB";
+        } else if (size >= kb) {
+            size = size / kb;
+            unit = "KB";
+        } else if (size > 0) {
+            unit = "b";
+        } else {
+            return normal_font ? "0 b" : "<strong>-</strong>";
+        }
+        // return formatted string
+        var rounded = unit == "b" ? size : roundToDecimalPlaces(size, numberPlaces);
+        if (normal_font) {
+            return rounded + " " + unit;
+        } else {
+            return "<strong>" + rounded + "</strong> " + unit;
+        }
+    }
+
+    /** Create a unique id */
+    function uid() {
+        top.__utils__uid__ = top.__utils__uid__ || 0;
+        return "uid-" + top.__utils__uid__++;
+    }
+
+    /** Create a time stamp */
+    function time() {
+        var d = new Date();
+        var hours = (d.getHours() < 10 ? "0" : "") + d.getHours();
+        var minutes = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
+        return d.getDate() + "/" + (d.getMonth() + 1) + "/" + d.getFullYear() + ", " + hours + ":" + minutes;
+    }
+
+    /** Append script and style tags to Galaxy main application */
+    function appendScriptStyle(data) {
+        // create a script tag inside head tag
+        if (data.script && data.script !== "") {
+            $("<script/>", {
+                type: "text/javascript"
+            }).text(data.script).appendTo("head");
+        }
+        // create a style tag inside head tag
+        if (data.styles && data.styles !== "") {
+            $("<style/>", {
+                type: "text/css"
+            }).text(data.styles).appendTo("head");
+        }
+    }
+
+    /** Get querystrings from url */
+    function getQueryString(key) {
+        return decodeURIComponent(window.location.search.replace(new RegExp("^(?:.*[&\\?]" + encodeURIComponent(key).replace(/[\.\+\*]/g, "\\$&") + "(?:\\=([^&]*))?)?.*$", "i"), "$1"));
+    }
+
+    function setWindowTitle(title) {
+        if (title) {
+            window.document.title = "Galaxy " + (window.Galaxy.config.brand ? " | " + window.Galaxy.config.brand : "") + " | " + (0, _localization2.default)(title);
+        } else {
+            window.document.title = "Galaxy " + (window.Galaxy.config.brand ? " | " + window.Galaxy.config.brand : "");
+        }
+    }
+
+    exports.default = {
+        cssLoadFile: cssLoadFile,
+        cssGetAttribute: cssGetAttribute,
+        get: get,
+        merge: merge,
+        iframe: iframe,
+        bytesToString: bytesToString,
+        uid: uid,
+        time: time,
+        request: request,
+        sanitize: sanitize,
+        textify: textify,
+        isEmpty: isEmpty,
+        deepeach: deepeach,
+        isJSON: isJSON,
+        clone: clone,
+        linkify: linkify,
+        appendScriptStyle: appendScriptStyle,
+        getQueryString: getQueryString,
+        setWindowTitle: setWindowTitle
+    };
+});
 //# sourceMappingURL=../../maps/utils/utils.js.map

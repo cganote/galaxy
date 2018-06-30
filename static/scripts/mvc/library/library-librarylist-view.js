@@ -1,2 +1,256 @@
-define(["galaxy.masthead","mvc/base-mvc","utils/utils","libs/toastr","mvc/library/library-model","mvc/library/library-libraryrow-view"],function(a,b,c,d,e,f){var g=Backbone.View.extend({el:"#libraries_element",events:{"click .sort-libraries-link":"sort_clicked"},defaults:{page_count:null,show_page:null},initialize:function(a){this.options=_.defaults(this.options||{},this.defaults,a);var b=this;this.modal=null,this.rowViews={},this.collection=new e.Libraries,this.collection.fetch({success:function(){b.render()},error:function(a,b){d.error("undefined"!=typeof b.responseJSON?b.responseJSON.err_msg:"An error ocurred.")}})},render:function(a){this.options=_.extend(this.options,a);var b=this.templateLibraryList(),c=null,d=null;$(".tooltip").hide(),"undefined"!=typeof a&&(d="undefined"!=typeof a.models?a.models:null),null!==this.collection&&null===d?(this.sortLibraries(),c=Galaxy.libraries.preferences.get("with_deleted")?this.collection.models:this.collection.where({deleted:!1})):c=null!==d?d:[],(null===this.options.show_page||this.options.show_page<1)&&(this.options.show_page=1),this.options.total_libraries_count=c.length;var e=Galaxy.libraries.preferences.get("library_page_size")*(this.options.show_page-1);this.options.page_count=Math.ceil(this.options.total_libraries_count/Galaxy.libraries.preferences.get("library_page_size")),this.options.total_libraries_count>0&&e<this.options.total_libraries_count?(c=c.slice(e,e+Galaxy.libraries.preferences.get("library_page_size")),this.options.libraries_shown=c.length,Galaxy.libraries.preferences.get("library_page_size")*this.options.show_page>this.options.total_libraries_count+Galaxy.libraries.preferences.get("library_page_size")&&(c=[]),this.$el.html(b({length:1,order:Galaxy.libraries.preferences.get("sort_order")})),Galaxy.libraries.libraryToolbarView.renderPaginator(this.options),this.renderRows(c)):(this.$el.html(b({length:0,order:Galaxy.libraries.preferences.get("sort_order")})),Galaxy.libraries.libraryToolbarView.renderPaginator(this.options)),$("#center [data-toggle]").tooltip(),$("#center").css("overflow","auto")},renderRows:function(a){for(var b=0;b<a.length;b++){var c=a[b],d=_.findWhere(this.rowViews,{id:c.get("id")});void 0!==d&&this instanceof Backbone.View?(d.delegateEvents(),this.$el.find("#library_list_body").append(d.el)):this.renderOne({library:c})}},renderOne:function(a){var b=a.library,c=new f.LibraryRowView(b);this.$el.find("#library_list_body").append(c.el),this.rowViews[b.get("id")]=c},sort_clicked:function(){Galaxy.libraries.preferences.set("asc"===Galaxy.libraries.preferences.get("sort_order")?{sort_order:"desc"}:{sort_order:"asc"}),this.render()},sortLibraries:function(){"name"===Galaxy.libraries.preferences.get("sort_by")&&("asc"===Galaxy.libraries.preferences.get("sort_order")?this.collection.sortByNameAsc():"desc"===Galaxy.libraries.preferences.get("sort_order")&&this.collection.sortByNameDesc())},redirectToHome:function(){window.location="../"},redirectToLogin:function(){window.location="/user/login"},templateLibraryList:function(){return tmpl_array=[],tmpl_array.push('<div class="library_container table-responsive">'),tmpl_array.push("<% if(length === 0) { %>"),tmpl_array.push('<div>There are no libraries visible to you here. If you expected some to show up please consult the <a href="https://wiki.galaxyproject.org/Admin/DataLibraries/LibrarySecurity" target="_blank">library security wikipage</a> or visit the <a href="https://biostar.usegalaxy.org/" target="_blank">Galaxy support site</a>.</div>'),tmpl_array.push("<% } else{ %>"),tmpl_array.push('<table class="grid table table-condensed">'),tmpl_array.push("   <thead>"),tmpl_array.push('     <th style="width:30%;"><a class="sort-libraries-link" title="Click to reverse order" href="#">name</a> <span title="Sorted alphabetically" class="fa fa-sort-alpha-<%- order %>"></span></th>'),tmpl_array.push('     <th style="width:22%;">description</th>'),tmpl_array.push('     <th style="width:22%;">synopsis</th> '),tmpl_array.push('     <th style="width:26%;"></th>'),tmpl_array.push("   </thead>"),tmpl_array.push('   <tbody id="library_list_body">'),tmpl_array.push("   </tbody>"),tmpl_array.push("</table>"),tmpl_array.push("<% }%>"),tmpl_array.push("</div>"),_.template(tmpl_array.join(""))}});return{LibraryListView:g}});
+define("mvc/library/library-librarylist-view", ["exports", "libs/toastr", "mvc/library/library-model", "mvc/library/library-libraryrow-view", "libs/underscore"], function(exports, _toastr, _libraryModel, _libraryLibraryrowView, _underscore) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var _toastr2 = _interopRequireDefault(_toastr);
+
+    var _libraryModel2 = _interopRequireDefault(_libraryModel);
+
+    var _libraryLibraryrowView2 = _interopRequireDefault(_libraryLibraryrowView);
+
+    var _underscore2 = _interopRequireDefault(_underscore);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    var LibraryListView = Backbone.View.extend({
+        el: "#libraries_element",
+
+        events: {
+            "click .sort-libraries-link": "sort_clicked"
+        },
+
+        defaults: {
+            page_count: null,
+            show_page: null,
+            all_fetched: false
+        },
+
+        /**
+         * Initialize and fetch the libraries from server.
+         * Async render afterwards.
+         * @param  {object} options an object with options
+         */
+        initialize: function initialize(options) {
+            this.options = _underscore2.default.defaults(this.options || {}, options, this.defaults);
+            var that = this;
+            this.modal = null;
+            // collection of {Item}s
+            this.collection = new _libraryModel2.default.Libraries();
+            this.collection.url = this.collection.urlRoot + "?deleted=false";
+            this.collection.fetch({
+                success: function success() {
+                    that.render();
+                },
+                error: function error(model, response) {
+                    if (typeof response.responseJSON !== "undefined") {
+                        _toastr2.default.error(response.responseJSON.err_msg);
+                    } else {
+                        _toastr2.default.error("An error occurred.");
+                    }
+                }
+            });
+        },
+
+        /**
+         * Render the libraries table either from the object's own collection,
+         * or from a given array of library models,
+         * or render an empty list in case no data is given.
+         */
+        render: function render(options) {
+            this.options = _underscore2.default.extend(this.options, options);
+            this.setElement("#libraries_element");
+            var template = this.templateLibraryList();
+            var libraries_to_render = null;
+            var models = null;
+            var is_public = function is_public(model) {
+                return model.get("public") === true;
+            };
+            $(".tooltip").hide();
+            if (typeof options !== "undefined") {
+                models = typeof options.models !== "undefined" ? options.models : null;
+            }
+            if (this.collection !== null && models === null) {
+                this.sortLibraries();
+                if (Galaxy.libraries.preferences.get("with_deleted")) {
+                    libraries_to_render = this.collection.models;
+                } else {
+                    libraries_to_render = this.collection.where({
+                        deleted: false
+                    });
+                }
+                if (Galaxy.libraries.preferences.get("without_restricted")) {
+                    libraries_to_render = _underscore2.default.filter(libraries_to_render, is_public);
+                }
+            } else if (models !== null) {
+                if (Galaxy.libraries.preferences.get("with_deleted")) {
+                    libraries_to_render = models;
+                } else {
+                    var is_deleted = function is_deleted(model) {
+                        return model.get("deleted") === false;
+                    };
+                    libraries_to_render = _underscore2.default.filter(models, is_deleted);
+                }
+                if (Galaxy.libraries.preferences.get("without_restricted")) {
+                    libraries_to_render = _underscore2.default.filter(libraries_to_render, is_public);
+                }
+            } else {
+                libraries_to_render = [];
+            }
+
+            // pagination
+            if (this.options.show_page === null || this.options.show_page < 1) {
+                this.options.show_page = 1;
+            }
+            this.options.total_libraries_count = libraries_to_render.length;
+            var page_start = Galaxy.libraries.preferences.get("library_page_size") * (this.options.show_page - 1);
+            this.options.page_count = Math.ceil(this.options.total_libraries_count / Galaxy.libraries.preferences.get("library_page_size"));
+            if (this.options.total_libraries_count > 0 && page_start < this.options.total_libraries_count) {
+                libraries_to_render = libraries_to_render.slice(page_start, page_start + Galaxy.libraries.preferences.get("library_page_size"));
+                this.options.libraries_shown = libraries_to_render.length;
+                // User requests page with no libraries
+                if (Galaxy.libraries.preferences.get("library_page_size") * this.options.show_page > this.options.total_libraries_count + Galaxy.libraries.preferences.get("library_page_size")) {
+                    libraries_to_render = [];
+                }
+                this.$el.html(template({
+                    length: 1,
+                    order: Galaxy.libraries.preferences.get("sort_order"),
+                    search_term: Galaxy.libraries.libraryToolbarView.options.search_term
+                }));
+                Galaxy.libraries.libraryToolbarView.renderPaginator(this.options);
+                this.renderRows(libraries_to_render);
+            } else {
+                this.$el.html(template({
+                    length: 0,
+                    order: Galaxy.libraries.preferences.get("sort_order"),
+                    search_term: Galaxy.libraries.libraryToolbarView.options.search_term
+                }));
+                Galaxy.libraries.libraryToolbarView.renderPaginator(this.options);
+            }
+            $('#center [data-toggle="tooltip"]').tooltip({
+                trigger: "hover"
+            });
+            $("#center").css("overflow", "auto");
+        },
+
+        fetchDeleted: function fetchDeleted() {
+            if (this.options.all_fetched) {
+                this.render();
+            } else {
+                var that = this;
+                this.collection.url = this.collection.urlRoot + "?deleted=true";
+                this.collection.fetch({
+                    remove: false,
+                    success: function success() {
+                        that.options.all_fetched = true;
+                        that.render();
+                    },
+                    error: function error(model, response) {
+                        if (typeof response.responseJSON !== "undefined") {
+                            _toastr2.default.error(response.responseJSON.err_msg);
+                        } else {
+                            _toastr2.default.error("An error occurred.");
+                        }
+                    }
+                });
+            }
+        },
+
+        /**
+         * Render all given models as rows in the library list
+         * @param  {array} libraries_to_render array of library models to render
+         */
+        renderRows: function renderRows(libraries_to_render) {
+            for (var i = 0; i < libraries_to_render.length; i++) {
+                var library = libraries_to_render[i];
+                this.renderOne({
+                    library: library
+                });
+            }
+        },
+
+        /**
+         * Create a view for the given model and add it to the libraries view.
+         * @param {Library} model of the view that will be rendered
+         */
+        renderOne: function renderOne(options) {
+            var library = options.library;
+            var rowView = new _libraryLibraryrowView2.default.LibraryRowView(library);
+            this.$el.find("#library_list_body").append(rowView.el);
+        },
+
+        /**
+         * Table heading was clicked, update sorting preferences and re-render.
+         * @return {[type]} [description]
+         */
+        sort_clicked: function sort_clicked() {
+            if (Galaxy.libraries.preferences.get("sort_order") === "asc") {
+                Galaxy.libraries.preferences.set({
+                    sort_order: "desc"
+                });
+            } else {
+                Galaxy.libraries.preferences.set({
+                    sort_order: "asc"
+                });
+            }
+            this.render();
+        },
+
+        /**
+         * Sort the underlying collection according to the parameters received.
+         * Currently supports only sorting by name.
+         */
+        sortLibraries: function sortLibraries() {
+            if (Galaxy.libraries.preferences.get("sort_by") === "name") {
+                if (Galaxy.libraries.preferences.get("sort_order") === "asc") {
+                    this.collection.sortLibraries("name", "asc");
+                } else if (Galaxy.libraries.preferences.get("sort_order") === "desc") {
+                    this.collection.sortLibraries("name", "desc");
+                }
+            }
+        },
+
+        /**
+         * In case the search_term is not empty perform the search and render
+         * the result. Render all visible libraries otherwise.
+         * @param  {string} search_term string to search for
+         */
+        searchLibraries: function searchLibraries(search_term) {
+            var trimmed_term = $.trim(search_term);
+            if (trimmed_term !== "") {
+                var results = null;
+                results = this.collection.search(search_term);
+                this.options.searching = true;
+                this.render({
+                    models: results,
+                    show_page: 1
+                });
+            } else {
+                this.options.searching = false;
+                this.render();
+            }
+        },
+
+        // MMMMMMMMMMMMMMMMMM
+        // === TEMPLATES ====
+        // MMMMMMMMMMMMMMMMMM
+
+        templateLibraryList: function templateLibraryList() {
+            return _underscore2.default.template(['<div class="library_container table-responsive">', "<% if(length === 0) { %>", "<% if(search_term.length > 0) { %>", "<div>", "There are no libraries matching your search. Try different keyword.", "</div>", "<% } else{ %>", "<div>", "There are no libraries visible to you here. If you expected some to show up please consult the", ' <a href="https://galaxyproject.org/data-libraries/#permissions" target="_blank">library security wikipage</a>', ' or visit the <a href="https://biostar.usegalaxy.org/" target="_blank">Galaxy support site</a>.', "</div>", "<% }%>", "<% } else{ %>", '<table class="grid table table-sm">', "<thead>", '<th style="width:30%;">', '<a class="sort-libraries-link" title="Click to reverse order" href="#">', "name", "</a>", '<span title="Sorted alphabetically" class="fa fa-sort-alpha-<%- order %>"/>', "</th>", '<th style="width:22%;">description</th>', '<th style="width:22%;">synopsis</th> ', '<th style="width:26%;"></th>', "</thead>", '<tbody id="library_list_body">',
+                // library item views will attach here
+                "</tbody>", "</table>", "<% }%>", "</div>"
+            ].join(""));
+        }
+    });
+
+    exports.default = {
+        LibraryListView: LibraryListView
+    };
+});
 //# sourceMappingURL=../../../maps/mvc/library/library-librarylist-view.js.map

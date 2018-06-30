@@ -5,19 +5,11 @@
 
 <%def name="javascripts()">
     ${parent.javascripts()}
-    ${h.js( "libs/require" )}
+    ${h.js("bundled/extended.bundled")}
 
     <script type="text/javascript">
-        require.config({
-            baseUrl: "${h.url_for('/static/scripts')}",
-            shim: {
-                "libs/backbone/backbone": { exports: "Backbone" },
-            },
-            urlArgs: 'v=${app.server_starttime}'
-        });
-
-        require([ 'mvc/data' ], function( data ) {
-            data.createTabularDatasetChunkedView({
+        $(function(){
+            bundleEntries.createTabularDatasetChunkedView({
                 dataset_config : _.extend( ${ h.dumps( trans.security.encode_dict_ids( dataset.to_dict() ) )}, {
                         first_data_chunk: ${ chunk }
                     }),

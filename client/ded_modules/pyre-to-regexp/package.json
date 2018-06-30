@@ -1,0 +1,30 @@
+{
+  "name": "pyre-to-regexp",
+  "version": "0.0.5",
+  "description": "Converts Python-like (re) regular expressions to JavaScript RegExp instances",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha --reporter spec"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/jmchilton/pyre-to-regexp.git"
+  },
+  "keywords": [
+    "regexp",
+    "convert"
+  ],
+  "author": "John Chilton <jmchilton@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jmchilton/pyre-to-regexp/issues"
+  },
+  "homepage": "https://github.com/jmchilton/pyre-to-regexp",
+  "devDependencies": {
+    "mocha": "2",
+    "yamljs": "0.3.0"
+  }
+}

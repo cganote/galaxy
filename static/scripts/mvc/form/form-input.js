@@ -1,2 +1,123 @@
-define([],function(){return Backbone.View.extend({initialize:function(a,b){this.app=a,this.text_enable=a.options.text_enable||"Enable",this.text_disable=a.options.text_disable||"Disable",this.cls_enable=a.options.cls_enable||"fa fa-plus-square",this.cls_disable=a.options.cls_disable||"fa fa-minus-square",this.field=b.field,this.default_value=b.default_value,this.setElement(this._template(b)),this.$field=this.$el.find(".ui-table-form-field"),this.$optional=this.$el.find(".ui-table-form-optional"),this.$optional_icon=this.$el.find(".ui-table-form-optional").find(".icon"),this.$error_text=this.$el.find(".ui-table-form-error-text"),this.$error=this.$el.find(".ui-table-form-error"),this.$field.prepend(this.field.$el),this.field.skip=!1;var c=this.field.value&&this.field.value();this.field.skip=Boolean(b.collapsible&&(c===this.default_value||String(c)===String(this.default_value)||Number(c)===Number(this.default_value)||JSON.stringify(c)===JSON.stringify(this.default_value))),this._refresh();var d=this;this.$optional.on("click",function(){d.field.skip=!d.field.skip,d._refresh(),d.app.trigger("change")})},error:function(a){this.$error_text.html(a),this.$error.show(),this.$el.addClass("ui-error")},reset:function(){this.$error.hide(),this.$el.removeClass("ui-error")},_refresh:function(){this.$optional_icon.removeClass().addClass("icon"),this.field.skip?(this.$field.hide(),this._tooltip(this.text_enable,this.cls_enable),this.field.value&&this.field.value(this.default_value)):(this.$field.fadeIn("fast"),this._tooltip(this.text_disable,this.cls_disable))},_tooltip:function(a,b){this.$optional.length&&this.$optional_icon.addClass(b).tooltip({placement:"bottom"}).attr("data-original-title",a).tooltip("fixTitle").tooltip("hide")},_template:function(a){var b='<div class="ui-table-form-element"><div class="ui-table-form-error ui-error"><span class="fa fa-arrow-down"/><span class="ui-table-form-error-text"/></div><div class="ui-table-form-title">';return b+=a.collapsible?'<div class="ui-table-form-optional"><i class="icon"/>'+a.label+"</div>":a.label,b+='</div><div class="ui-table-form-field">',b+='<div class="ui-table-form-info">',a.help&&(b+=a.help),b+="</div>",b+="</div></div>"}})});
+define("mvc/form/form-input", ["exports"], function(exports) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+    exports.default = Backbone.View.extend({
+        initialize: function initialize(app, options) {
+            this.app = app;
+            this.app_options = app.model ? app.model.attributes : {};
+            this.field = options && options.field || new Backbone.View();
+            this.model = options && options.model || new Backbone.Model({
+                text_enable: this.app_options.text_enable || "Enable",
+                text_disable: this.app_options.text_disable || "Disable",
+                cls_enable: this.app_options.cls_enable || "fa fa-caret-square-o-down",
+                cls_disable: this.app_options.cls_disable || "fa fa-caret-square-o-up",
+                always_refresh: this.app_options.always_refresh
+            }).set(options);
+
+            // set element and link components
+            this.setElement(this._template());
+            this.$field = this.$(".ui-form-field");
+            this.$info = this.$(".ui-form-info");
+            this.$preview = this.$(".ui-form-preview");
+            this.$collapsible = this.$(".ui-form-collapsible");
+            this.$collapsible_text = this.$(".ui-form-collapsible-text");
+            this.$collapsible_icon = this.$(".ui-form-collapsible-icon");
+            this.$title = this.$(".ui-form-title");
+            this.$title_text = this.$(".ui-form-title-text");
+            this.$error_text = this.$(".ui-form-error-text");
+            this.$error = this.$(".ui-form-error");
+            this.$backdrop = this.$(".ui-form-backdrop");
+
+            // add field element
+            this.$field.prepend(this.field.$el);
+
+            // decide wether to expand or collapse fields
+            var collapsible_value = this.model.get("collapsible_value");
+            this.field.collapsed = collapsible_value !== undefined && JSON.stringify(this.model.get("value")) == JSON.stringify(collapsible_value);
+            this.listenTo(this.model, "change", this.render, this);
+            this.render();
+
+            // add click handler
+            var self = this;
+            this.$collapsible.on("click", function() {
+                self.field.collapsed = !self.field.collapsed;
+                app.trigger && app.trigger("change");
+                self.render();
+            });
+
+            // hide error on value change
+            if (this.field.model && !this.model.get("always_refresh")) {
+                this.listenTo(this.field.model, "change:value", function() {
+                    self.reset();
+                });
+            }
+        },
+
+        /** Set backdrop for input element */
+        backdrop: function backdrop() {
+            this.model.set("backdrop", true);
+        },
+
+        /** Set error text */
+        error: function error(text) {
+            this.model.set("error_text", text);
+        },
+
+        /** Reset this view */
+        reset: function reset() {
+            !this.model.get("fixed") && this.model.set("error_text", null);
+        },
+
+        render: function render() {
+            // render help
+            $(".tooltip").hide();
+            var help_text = this.model.get("help", "");
+            var help_argument = this.model.get("argument");
+            if (help_argument && help_text.indexOf("(" + help_argument + ")") == -1) {
+                help_text += " (" + help_argument + ")";
+            }
+            this.$info.html(help_text);
+            // render visibility
+            this.$el[this.model.get("hidden") ? "hide" : "show"]();
+            // render preview view for collapsed fields
+            // allow at least newlines to render properly after escape
+            var html = _.escape(this.model.get("text_value")).replace(/\n/g, "<br />");
+            this.$preview[this.field.collapsed && this.model.get("collapsible_preview") || this.model.get("disabled") ? "show" : "hide"]().html(html);
+            // render error messages
+            var error_text = this.model.get("error_text");
+            this.$error[error_text ? "show" : "hide"]();
+            this.$el[error_text ? "addClass" : "removeClass"]("ui-error");
+            this.$error_text.html(error_text);
+            // render backdrop
+            this.$backdrop[this.model.get("backdrop") ? "show" : "hide"]();
+            // render input field
+            this.field.collapsed || this.model.get("disabled") ? this.$field.hide() : this.$field.show();
+            // render input field color and style
+            this.field.model && this.field.model.set({
+                color: this.model.get("color"),
+                style: this.model.get("style")
+            });
+            // render collapsible options
+            if (!this.field.collapsible_disabled && !this.model.get("disabled") && this.model.get("collapsible_value") !== undefined) {
+                var collapsible_state = this.field.collapsed ? "enable" : "disable";
+                this.$title_text.hide();
+                this.$collapsible.show();
+                this.$collapsible_text.text(this.model.get("label"));
+                this.$collapsible_icon.removeClass().addClass("icon").addClass(this.model.get("cls_" + collapsible_state)).attr("data-original-title", this.model.get("text_" + collapsible_state)).tooltip({
+                    placement: "bottom"
+                });
+            } else {
+                this.$title_text.show().text(this.model.get("label"));
+                this.$collapsible.hide();
+            }
+        },
+
+        _template: function _template() {
+            return $("<div/>").addClass("ui-form-element").append($("<div/>").addClass("ui-form-error ui-error").append($("<span/>").addClass("fa fa-arrow-down")).append($("<span/>").addClass("ui-form-error-text"))).append($("<div/>").addClass("ui-form-title").append($("<div/>").addClass("ui-form-collapsible").append($("<i/>").addClass("ui-form-collapsible-icon")).append($("<span/>").addClass("ui-form-collapsible-text"))).append($("<span/>").addClass("ui-form-title-text"))).append($("<div/>").addClass("ui-form-field").append($("<span/>").addClass("ui-form-info")).append($("<div/>").addClass("ui-form-backdrop"))).append($("<div/>").addClass("ui-form-preview"));
+        }
+    });
+});
 //# sourceMappingURL=../../../maps/mvc/form/form-input.js.map

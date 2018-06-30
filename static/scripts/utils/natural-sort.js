@@ -1,2 +1,46 @@
-define([],function(){function a(a,b){var c=/(-?[0-9\.]+)/g,d=a.toString().toLowerCase()||"",e=b.toString().toLowerCase()||"",f=String.fromCharCode(0),g=d.replace(c,f+"$1"+f).split(f),h=e.replace(c,f+"$1"+f).split(f),i=new Date(d).getTime(),j=i?new Date(e).getTime():null;if(j){if(j>i)return-1;if(i>j)return 1}for(var k,l,m=0,n=Math.max(g.length,h.length);n>m;m++){if(k=parseFloat(g[m])||g[m],l=parseFloat(h[m])||h[m],l>k)return-1;if(k>l)return 1}return 0}return a});
+define("utils/natural-sort", ["exports"], function(exports) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+    // Alphanumeric/natural sort fn
+    function naturalSort(a, b) {
+        // setup temp-scope variables for comparison evauluation
+        var re = /(-?[0-9\.]+)/g;
+
+        var x = a.toString().toLowerCase() || "";
+        var y = b.toString().toLowerCase() || "";
+        var nC = String.fromCharCode(0);
+        var xN = x.replace(re, nC + "$1" + nC).split(nC);
+        var yN = y.replace(re, nC + "$1" + nC).split(nC);
+        var xD = new Date(x).getTime();
+        var yD = xD ? new Date(y).getTime() : null;
+        // natural sorting of dates
+        if (yD) {
+            if (xD < yD) {
+                return -1;
+            } else if (xD > yD) {
+                return 1;
+            }
+        }
+
+        // natural sorting through split numeric strings and default strings
+        var oFxNcL;
+
+        var oFyNcL;
+        for (var cLoc = 0, numS = Math.max(xN.length, yN.length); cLoc < numS; cLoc++) {
+            oFxNcL = parseFloat(xN[cLoc]) || xN[cLoc];
+            oFyNcL = parseFloat(yN[cLoc]) || yN[cLoc];
+            if (oFxNcL < oFyNcL) {
+                return -1;
+            } else if (oFxNcL > oFyNcL) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    exports.default = naturalSort;
+});
 //# sourceMappingURL=../../maps/utils/natural-sort.js.map

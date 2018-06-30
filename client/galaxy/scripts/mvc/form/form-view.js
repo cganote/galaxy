@@ -1,242 +1,156 @@
 /**
-    This is the main class of the form plugin. It is referenced as 'app' in all lower level modules.
+    This is the main class of the form plugin. It is referenced as 'app' in lower level modules.
 */
-define(['utils/utils', 'mvc/ui/ui-portlet', 'mvc/ui/ui-misc',
-        'mvc/form/form-section', 'mvc/form/form-data'],
-    function(Utils, Portlet, Ui, FormSection, FormData) {
+import Portlet from "mvc/ui/ui-portlet";
+import Ui from "mvc/ui/ui-misc";
+import FormSection from "mvc/form/form-section";
+import FormData from "mvc/form/form-data";
+export default Backbone.View.extend({
+    initialize: function(options) {
+        this.model = new Backbone.Model({
+            initial_errors: false,
+            cls: "ui-portlet-limited",
+            icon: null,
+            always_refresh: true,
+            status: "warning",
+            hide_operations: false,
+            onchange: function() {}
+        }).set(options);
+        this.setElement("<div/>");
+        this.render();
+    },
 
-    // create form view
-    return Backbone.View.extend({
-        // initialize
-        initialize: function(options) {
-            // options
-            this.optionsDefault = {
-                // uses workflow editor mode i.e. text instead of select fields
-                is_workflow     : false,
-                // shows form in narrow view mode
-                narrow          : false,
-                // shows errors on start
-                initial_errors  : false,
-                // portlet style
-                cls             : 'ui-portlet-limited'
-            };
-
-            // configure options
-            this.options = Utils.merge(options, this.optionsDefault);
-
-            // log options
-            console.debug(this.options);
-
-            // link galaxy modal or create one
-            var galaxy = parent.Galaxy;
-            if (galaxy && galaxy.modal) {
-                this.modal = galaxy.modal;
-            } else {
-                this.modal = new Ui.Modal.View();
+    /** Update available options */
+    update: function(new_model) {
+        var self = this;
+        this.data.matchModel(new_model, (node, input_id) => {
+            var field = self.field_list[input_id];
+            if (field.update) {
+                field.update(node);
+                field.trigger("change");
+                Galaxy.emit.debug("form-view::update()", `Updating input: ${input_id}`);
             }
+        });
+    },
 
-            // set element
-            this.setElement('<div/>');
+    /** Set form into wait mode */
+    wait: function(active) {
+        for (var i in this.input_list) {
+            var field = this.field_list[i];
+            var input = this.input_list[i];
+            if (input.is_dynamic && field.wait && field.unwait) {
+                field[active ? "wait" : "unwait"]();
+            }
+        }
+    },
 
-            // build this form
-            this._build();
-        },
+    /** Highlight and scroll to input element (currently only used for error notifications) */
+    highlight: function(input_id, message, silent) {
+        var input_element = this.element_list[input_id];
+        if (input_element) {
+            input_element.error(message || "Please verify this parameter.");
+            this.portlet.expand();
+            this.trigger("expand", input_id);
+            if (!silent) {
+                var $panel = this.$el
+                    .parents()
+                    .filter(function() {
+                        return ["auto", "scroll"].indexOf($(this).css("overflow")) != -1;
+                    })
+                    .first();
+                $panel.animate(
+                    {
+                        scrollTop: $panel.scrollTop() + input_element.$el.offset().top - $panel.position().top - 120
+                    },
+                    500
+                );
+            }
+        }
+    },
 
-        /** Update available options */
-        update: function(new_model){
-            var self = this;
-            this.data.matchModel(new_model, function(input_id, node) {
-                var input = self.input_list[input_id];
-                if (input && input.options) {
-                    if (!_.isEqual(input.options, node.options)) {
-                        // backup new options
-                        input.options = node.options;
-
-                        // get/update field
-                        var field = self.field_list[input_id];
-                        if (field.update) {
-                            var new_options = [];
-                            if ((['data', 'data_collection', 'drill_down']).indexOf(input.type) != -1) {
-                                new_options = input.options;
-                            } else {
-                                for (var i in node.options) {
-                                    var opt = node.options[i];
-                                    if (opt.length > 2) {
-                                        new_options.push({
-                                            'label': opt[0],
-                                            'value': opt[1]
-                                        });
-                                    }
-                                }
-                            }
-                            field.update(new_options);
-                            field.trigger('change');
-                            console.debug('Updating options for ' + input_id);
-                        }
-                    }
-                }
-            });
-        },
-
-        /** Set form into wait mode */
-        wait: function(active) {
-            for (var i in this.input_list) {
-                var field = this.field_list[i];
-                var input = this.input_list[i];
-                if (input.is_dynamic && field.wait && field.unwait) {
-                    if (active) {
-                        field.wait();
-                    } else {
-                        field.unwait();
-                    }
+    /** Highlights errors */
+    errors: function(options) {
+        this.trigger("reset");
+        if (options && options.errors) {
+            var error_messages = this.data.matchResponse(options.errors);
+            for (var input_id in this.element_list) {
+                if (error_messages[input_id]) {
+                    this.highlight(input_id, error_messages[input_id], true);
                 }
             }
-        },
+        }
+    },
 
-        /** Shows the final message (usually upon successful job submission)
-        */
-        reciept: function($el) {
-            this.$el.empty();
-            this.$el.append($el);
-        },
-
-        /** Highlight and scroll to input element (currently only used for error notifications)
-        */
-        highlight: function (input_id, message, silent) {
-            // get input field
-            var input_element = this.element_list[input_id];
-
-            // check input element
-            if (input_element) {
-                // mark error
-                input_element.error(message || 'Please verify this parameter.');
-
-                // scroll to first input element
-                if (!silent) {
-                    $('html, body').animate({
-                        scrollTop: input_element.$el.offset().top - 20
-                    }, 500);
-                }
-            }
-        },
-
-        /** Highlights errors
-        */
-        errors: function(options) {
-            // hide previous error statements
-            this.trigger('reset');
-
-            // highlight all errors
-            if (options && options.errors) {
-                var error_messages = this.data.matchResponse(options.errors);
-                for (var input_id in this.element_list) {
-                    var input = this.element_list[input_id];
-                    if (error_messages[input_id]) {
-                        this.highlight(input_id, error_messages[input_id], true);
-                    }
-                }
-            }
-        },
-
-        /** Main tool form build function. This function is called once a new model is available.
-        */
-        _build: function() {
-            // link this
-            var self = this;
-
-            // reset events
-            this.off('change');
-            this.off('reset');
-
-            // reset field list, which contains the input field elements
-            this.field_list = {};
-
-            // reset sequential input definition list, which contains the input definitions as provided from the api
-            this.input_list = {};
-
-            // reset input element list, which contains the dom elements of each input element (includes also the input field)
-            this.element_list = {};
-
-            // creates a json data structure from the input form
-            this.data = new FormData(this);
-
-            // create ui elements
-            this._renderForm();
-
-            // refresh data
-            this.data.create();
-
-            // show errors on startup
-            if (this.options.initial_errors) {
-                this.errors(this.options);
-            }
-
-            // add listener which triggers on checksum change
-            var current_check = this.data.checksum();
-            this.on('change', function() {
+    /** Render tool form */
+    render: function() {
+        var self = this;
+        this.off("change");
+        this.off("reset");
+        // contains the dom field elements as created by the parameter factory i.e. form-parameters
+        this.field_list = {};
+        // contains input definitions/dictionaries as provided by the parameters to_dict() function through the api
+        this.input_list = {};
+        // contains the dom elements of each input element i.e. form-input which wraps the actual input field
+        this.element_list = {};
+        // converts the form into a json data structure
+        this.data = new FormData.Manager(this);
+        this._renderForm();
+        this.data.create();
+        if (this.model.get("initial_errors")) {
+            this.errors(this.model.attributes);
+        }
+        // add listener which triggers on checksum change, and reset the form input wrappers
+        var current_check = this.data.checksum();
+        this.on("change", input_id => {
+            var input = self.input_list[input_id];
+            if (!input || input.refresh_on_change || self.model.get("always_refresh")) {
                 var new_check = self.data.checksum();
                 if (new_check != current_check) {
                     current_check = new_check;
-                    self.options.onchange && self.options.onchange();
+                    self.model.get("onchange")();
                 }
-            });
-
-            // add reset listener
-            this.on('reset', function() {
-                for (var i in this.element_list) {
-                    this.element_list[i].reset();
-                }
-            });
-        },
-
-        /** Renders the UI elements required for the form
-        */
-        _renderForm: function() {
-            // create message view
-            this.message = new Ui.Message();
-
-            // create tool form section
-            this.section = new FormSection.View(this, {
-                inputs : this.options.inputs
-            });
-
-            // switch to classic tool form mako if the form definition is incompatible
-            if (this.incompatible) {
-                this.$el.hide();
-                $('#tool-form-classic').show();
-                return;
             }
-
-            // create portlet
-            this.portlet = new Portlet.View({
-                icon        : 'fa-wrench',
-                title       : this.options.title,
-                cls         : this.options.cls,
-                operations  : this.options.operations,
-                buttons     : this.options.buttons
+        });
+        this.on("reset", () => {
+            _.each(self.element_list, input_element => {
+                input_element.reset();
             });
+        });
+        return this;
+    },
 
-            // append message
-            this.portlet.append(this.message.$el.addClass('ui-margin-top'));
-
-            // append tool section
-            this.portlet.append(this.section.$el);
-
-            // start form
-            this.$el.empty();
+    /** Renders/appends dom elements of the form */
+    _renderForm: function() {
+        $(".tooltip").remove();
+        var options = this.model.attributes;
+        this.message = new Ui.UnescapedMessage();
+        this.section = new FormSection.View(this, {
+            inputs: options.inputs
+        });
+        this.portlet = new Portlet.View({
+            icon: options.icon,
+            title: options.title,
+            title_id: options.title_id,
+            cls: options.cls,
+            operations: !options.hide_operations && options.operations,
+            buttons: options.buttons,
+            collapsible: options.collapsible,
+            collapsed: options.collapsed,
+            onchange_title: options.onchange_title
+        });
+        this.portlet.append(this.message.$el);
+        this.portlet.append(this.section.$el);
+        this.$el.empty();
+        if (options.inputs) {
             this.$el.append(this.portlet.$el);
-
-            // show message if available in model
-            if (this.options.message) {
-                this.message.update({
-                    persistent  : true,
-                    status      : 'warning',
-                    message     : this.options.message
-                });
-            }
-
-            // log
-            console.debug('tools-form-base::initialize() - Completed.');
         }
-    });
+        if (options.message) {
+            this.message.update({
+                persistent: true,
+                status: options.status,
+                message: options.message
+            });
+        }
+        Galaxy.emit.debug("form-view::initialize()", "Completed");
+    }
 });

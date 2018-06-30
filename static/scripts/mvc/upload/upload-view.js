@@ -1,2 +1,201 @@
-define(["utils/utils","mvc/upload/upload-button","mvc/upload/upload-model","mvc/upload/upload-row","mvc/upload/upload-ftp","mvc/ui/ui-popover","mvc/ui/ui-modal","mvc/ui/ui-select","utils/uploadbox"],function(a,b,c,d,e,f,g,h){return Backbone.View.extend({options:{nginx_upload_path:""},default_extension:"auto",default_genome:"?",modal:null,ui_button:null,uploadbox:null,current_history:null,select_extension:null,select_genome:null,upload_size:0,list_extensions:[],list_genomes:[],auto:{id:"auto",text:"Auto-detect",description:"This system will try to detect the file type automatically. If your file is not detected properly as one of the known formats, it most likely means that it has some format problems (e.g., different number of columns on different rows). You can still coerce the system to set your data to the format you think it should be.  You can also upload compressed files, which will automatically be decompressed."},collection:new c.Collection,ftp:null,counter:{announce:0,success:0,error:0,running:0,reset:function(){this.announce=this.success=this.error=this.running=0}},initialize:function(c){var d=this;c&&(this.options=_.defaults(c,this.options)),this.ui_button=new b.Model({icon:"fa-upload",tooltip:"Download from URL or upload files from disk",label:"Load Data",onclick:function(a){a&&(a.preventDefault(),d.show())},onunload:function(){return d.counter.running>0?"Several uploads are still processing.":void 0}}),$(".with-upload-button").append(new b.View(this.ui_button).$el);var d=this;a.get({url:galaxy_config.root+"api/datatypes?extension_only=False",success:function(a){for(key in a)d.list_extensions.push({id:a[key].extension,text:a[key].extension,description:a[key].description,description_url:a[key].description_url});d.list_extensions.sort(function(a,b){return a.text>b.text?1:a.text<b.text?-1:0}),d.options.datatypes_disable_auto||d.list_extensions.unshift(d.auto)}}),a.get({url:galaxy_config.root+"api/genomes",success:function(a){for(key in a)d.list_genomes.push({id:a[key][1],text:a[key][0]});d.list_genomes.sort(function(a,b){return a.id==d.default_genome?-1:b.id==d.default_genome?1:a.text>b.text?1:a.text<b.text?-1:0})}}),this.collection.on("remove",function(a){d._eventRemove(a)})},show:function(){var a=this;if(!Galaxy.currHistoryPanel||!Galaxy.currHistoryPanel.model)return void window.setTimeout(function(){a.show()},500);if(!this.modal){var a=this;this.modal=new g.View({title:"Download data directly from web or upload files from your disk",body:this._template("upload-box","upload-info"),buttons:{"Choose local file":function(){a.uploadbox.select()},"Choose FTP file":function(){a._eventFtp()},"Paste/Fetch data":function(){a._eventCreate()},Start:function(){a._eventStart()},Pause:function(){a._eventStop()},Reset:function(){a._eventReset()},Close:function(){a.modal.hide()}},height:"400",width:"900",closing_events:!0}),this.setElement("#upload-box");var a=this;this.uploadbox=this.$el.uploadbox({announce:function(b,c,d){a._eventAnnounce(b,c,d)},initialize:function(b,c,d){return a._eventInitialize(b,c,d)},progress:function(b,c,d){a._eventProgress(b,c,d)},success:function(b,c,d){a._eventSuccess(b,c,d)},error:function(b,c,d){a._eventError(b,c,d)},complete:function(){a._eventComplete()}});var b=this.modal.getButton("Choose FTP file");this.ftp=new f.View({title:"FTP files",container:b}),this.select_extension=new h.View({css:"header-selection",data:this.list_extensions,container:this.$el.parent().find("#header-extension"),value:this.default_extension,onchange:function(b){a.updateExtension(b)}}),a.$el.parent().find("#header-extension-info").on("click",function(b){a.showExtensionInfo({$el:$(b.target),title:a.select_extension.text(),extension:a.select_extension.value(),placement:"top"})}).on("mousedown",function(a){a.preventDefault()}),this.select_genome=new h.View({css:"header-selection",data:this.list_genomes,container:this.$el.parent().find("#header-genome"),value:this.default_genome,onchange:function(b){a.updateGenome(b)}})}this.modal.show(),this._updateUser(),this._updateScreen()},showExtensionInfo:function(a){var b=this,c=a.$el,d=a.extension,e=a.title,g=_.findWhere(b.list_extensions,{id:d});this.extension_popup&&this.extension_popup.remove(),this.extension_popup=new f.View({placement:a.placement||"bottom",container:c,destroy:!0}),this.extension_popup.title(e),this.extension_popup.empty(),this.extension_popup.append(this._templateDescription(g)),this.extension_popup.show()},_eventRemove:function(a){var b=a.get("status");"success"==b?this.counter.success--:"error"==b?this.counter.error--:this.counter.announce--,this._updateScreen(),this.uploadbox.remove(a.id)},_eventAnnounce:function(a,b){this.counter.announce++,this._updateScreen();var c=new d(this,{id:a,file_name:b.name,file_size:b.size,file_mode:b.mode,file_path:b.path});this.collection.add(c.model),$(this.el).find("tbody:first").append(c.$el),c.render()},_eventInitialize:function(a,b){var c=this.collection.get(a);c.set("status","running");var d=(c.get("file_name"),c.get("file_path")),e=c.get("file_mode"),f=c.get("extension"),g=c.get("genome"),h=c.get("url_paste"),i=c.get("space_to_tabs"),j=c.get("to_posix_lines");return h||b.size>0?(this.uploadbox.configure({url:this.options.nginx_upload_path}),this.uploadbox.configure("local"==e?{paramname:"files_0|file_data"}:{paramname:null}),tool_input={},"new"==e&&(tool_input["files_0|url_paste"]=h),"ftp"==e&&(tool_input["files_0|ftp_files"]=d),tool_input.dbkey=g,tool_input.file_type=f,tool_input["files_0|type"]="upload_dataset",tool_input["files_0|space_to_tab"]=i&&"Yes"||null,tool_input["files_0|to_posix_lines"]=j&&"Yes"||null,data={},data.history_id=this.current_history,data.tool_id="upload1",data.inputs=JSON.stringify(tool_input),data):null},_eventProgress:function(a,b,c){var d=this.collection.get(a);d.set("percentage",c),this.ui_button.set("percentage",this._uploadPercentage(c,b.size))},_eventSuccess:function(a){var b=this.collection.get(a);b.set("percentage",100),b.set("status","success");var c=b.get("file_size");this.ui_button.set("percentage",this._uploadPercentage(100,c)),this.upload_completed+=100*c,this.counter.announce--,this.counter.success++,this._updateScreen(),Galaxy.currHistoryPanel.refreshContents()},_eventError:function(a,b,c){var d=this.collection.get(a);d.set("percentage",100),d.set("status","error"),d.set("info",c),this.ui_button.set("percentage",this._uploadPercentage(100,b.size)),this.ui_button.set("status","danger"),this.upload_completed+=100*b.size,this.counter.announce--,this.counter.error++,this._updateScreen()},_eventComplete:function(){this.collection.each(function(a){"queued"==a.get("status")&&a.set("status","init")}),this.counter.running=0,this._updateScreen()},_eventFtp:function(){this.ftp.visible?this.ftp.hide():(this.ftp.empty(),this.ftp.append(new e(this).$el),this.ftp.show())},_eventCreate:function(){this.uploadbox.add([{name:"New File",size:0,mode:"new"}])},_eventStart:function(){if(!(0==this.counter.announce||this.counter.running>0)){var a=this;this.upload_size=0,this.upload_completed=0,this.collection.each(function(b){"init"==b.get("status")&&(b.set("status","queued"),a.upload_size+=b.get("file_size"))}),this.ui_button.set("percentage",0),this.ui_button.set("status","success"),this.counter.running=this.counter.announce,this._updateScreen(),this.uploadbox.start()}},_eventStop:function(){0!=this.counter.running&&(this.ui_button.set("status","info"),this.uploadbox.stop(),$("#upload-info").html("Queue will pause after completing the current file..."))},_eventReset:function(){0==this.counter.running&&(this.collection.reset(),this.counter.reset(),this._updateScreen(),this.uploadbox.reset(),this.select_extension.value(this.default_extension),this.select_genome.value(this.default_genome),this.ui_button.set("percentage",0))},updateExtension:function(a,b){var c=this;this.collection.each(function(d){"init"!=d.get("status")||d.get("extension")!=c.default_extension&&b||d.set("extension",a)})},updateGenome:function(a,b){var c=this;this.collection.each(function(d){"init"!=d.get("status")||d.get("genome")!=c.default_genome&&b||d.set("genome",a)})},_updateUser:function(){this.current_user=Galaxy.currUser.get("id"),this.current_history=null,this.current_user&&(this.current_history=Galaxy.currHistoryPanel.model.get("id"))},_updateScreen:function(){message=0==this.counter.announce?this.uploadbox.compatible()?"You can Drag & Drop files into this box.":"Unfortunately, your browser does not support multiple file uploads or drag&drop.<br>Some supported browsers are: Firefox 4+, Chrome 7+, IE 10+, Opera 12+ or Safari 6+.":0==this.counter.running?"You added "+this.counter.announce+" file(s) to the queue. Add more files or click 'Start' to proceed.":"Please wait..."+this.counter.announce+" out of "+this.counter.running+" remaining.",$("#upload-info").html(message),0==this.counter.running&&this.counter.announce+this.counter.success+this.counter.error>0?this.modal.enableButton("Reset"):this.modal.disableButton("Reset"),0==this.counter.running&&this.counter.announce>0?this.modal.enableButton("Start"):this.modal.disableButton("Start"),this.counter.running>0?this.modal.enableButton("Pause"):this.modal.disableButton("Pause"),0==this.counter.running?(this.modal.enableButton("Choose local file"),this.modal.enableButton("Choose FTP file"),this.modal.enableButton("Paste/Fetch data")):(this.modal.disableButton("Choose local file"),this.modal.disableButton("Choose FTP file"),this.modal.disableButton("Paste/Fetch data")),this.current_user&&this.options.ftp_upload_dir&&this.options.ftp_upload_site?this.modal.showButton("Choose FTP file"):this.modal.hideButton("Choose FTP file"),this.counter.announce+this.counter.success+this.counter.error>0?$(this.el).find("#upload-table").show():$(this.el).find("#upload-table").hide()},_uploadPercentage:function(a,b){return(this.upload_completed+a*b)/this.upload_size},_templateDescription:function(a){if(a.description){var b=a.description;return a.description_url&&(b+='&nbsp;(<a href="'+a.description_url+'" target="_blank">read more</a>)'),b}return"There is no description available for this file extension."},_template:function(a,b){return'<div class="upload-top"><h6 id="'+b+'" class="upload-info"></h6></div><div id="'+a+'" class="upload-box"><table id="upload-table" class="table table-striped" style="display: none;"><thead><tr><th>Name</th><th>Size</th><th>Type</th><th>Genome</th><th>Settings</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div><div id="upload-header" class="upload-header"><span class="header-title">Type (set all):</span><span id="header-extension"/><span id="header-extension-info" class="upload-icon-button fa fa-search"/> <span class="header-title">Genome (set all):</span><span id="header-genome"/></div>'}})});
+define("mvc/upload/upload-view", ["exports", "utils/localization", "utils/utils", "mvc/ui/ui-modal", "mvc/ui/ui-tabs", "mvc/upload/upload-utils", "mvc/upload/upload-button", "mvc/upload/default/default-view", "mvc/upload/composite/composite-view", "mvc/upload/collection/collection-view", "mvc/upload/collection/rules-input-view"], function(exports, _localization, _utils, _uiModal, _uiTabs, _uploadUtils, _uploadButton, _defaultView, _compositeView, _collectionView, _rulesInputView) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var _localization2 = _interopRequireDefault(_localization);
+
+    var _utils2 = _interopRequireDefault(_utils);
+
+    var _uiModal2 = _interopRequireDefault(_uiModal);
+
+    var _uiTabs2 = _interopRequireDefault(_uiTabs);
+
+    var _uploadUtils2 = _interopRequireDefault(_uploadUtils);
+
+    var _uploadButton2 = _interopRequireDefault(_uploadButton);
+
+    var _defaultView2 = _interopRequireDefault(_defaultView);
+
+    var _compositeView2 = _interopRequireDefault(_compositeView);
+
+    var _collectionView2 = _interopRequireDefault(_collectionView);
+
+    var _rulesInputView2 = _interopRequireDefault(_rulesInputView);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    exports.default = Backbone.View.extend({
+        options: {
+            ftp_upload_site: "n/a",
+            default_genome: _uploadUtils2.default.DEFAULT_GENOME,
+            default_extension: _uploadUtils2.default.DEFAULT_EXTENSION,
+            height: 500,
+            width: 900,
+            auto: _uploadUtils2.default.AUTO_EXTENSION
+        },
+
+        // contains all available dataset extensions/types
+        list_extensions: [],
+
+        // contains all available genomes
+        list_genomes: [],
+
+        initialize: function initialize(options) {
+            var _this = this;
+
+            this.options = _utils2.default.merge(options, this.options);
+
+            // create view for upload/progress button
+            this.ui_button = new _uploadButton2.default.View({
+                onclick: function onclick(e) {
+                    e.preventDefault();
+                    _this.show();
+                },
+                onunload: function onunload() {
+                    var percentage = _this.ui_button.model.get("percentage", 0);
+                    if (percentage > 0 && percentage < 100) {
+                        return "Several uploads are queued.";
+                    }
+                }
+            });
+
+            // set element to button view
+            this.setElement(this.ui_button.$el);
+
+            // load extensions
+            _uploadUtils2.default.getUploadDatatypes(function(list_extensions) {
+                _this.list_extensions = list_extensions;
+            }, this.options.datatypes_disable_auto, this.options.auto);
+
+            // load genomes
+            _uploadUtils2.default.getUploadGenomes(function(list_genomes) {
+                _this.list_genomes = list_genomes;
+            }, this.default_genome);
+        },
+
+        /** Show/hide upload dialog */
+        show: function show() {
+            var self = this;
+            if (!Galaxy.currHistoryPanel || !Galaxy.currHistoryPanel.model) {
+                window.setTimeout(function() {
+                    self.show();
+                }, 500);
+                return;
+            }
+            this.current_user = Galaxy.user.id;
+            if (!this.modal) {
+                this.tabs = new _uiTabs2.default.View();
+                this.default_view = new _defaultView2.default(this);
+                this.tabs.add({
+                    id: "regular",
+                    title: (0, _localization2.default)("Regular"),
+                    $el: this.default_view.$el
+                });
+                this.composite_view = new _compositeView2.default(this);
+                this.tabs.add({
+                    id: "composite",
+                    title: (0, _localization2.default)("Composite"),
+                    $el: this.composite_view.$el
+                });
+                this.collection_view = new _collectionView2.default(this);
+                this.tabs.add({
+                    id: "collection",
+                    title: (0, _localization2.default)("Collection"),
+                    $el: this.collection_view.$el
+                });
+                this.rule_based_view = new _rulesInputView2.default(this);
+                this.tabs.add({
+                    id: "rule-based",
+                    title: (0, _localization2.default)("Rule-based"),
+                    $el: this.rule_based_view.$el
+                });
+                this.modal = new _uiModal2.default.View({
+                    title: (0, _localization2.default)("Download from web or upload from disk"),
+                    body: this.tabs.$el,
+                    height: this.options.height,
+                    width: this.options.width,
+                    closing_events: true,
+                    title_separator: false
+                });
+            }
+            this.modal.show();
+        },
+
+        /** Refresh user and current history */
+        currentHistory: function currentHistory() {
+            return this.current_user && Galaxy.currHistoryPanel.model.get("id");
+        },
+
+        /** Get ftp configuration */
+        currentFtp: function currentFtp() {
+            return this.current_user && this.options.ftp_upload_site;
+        },
+
+        /**
+         * Package API data from array of models
+         * @param{Array} items - Upload items/rows filtered from a collection
+         */
+        toData: function toData(items, history_id) {
+            // create dictionary for data submission
+            var data = {
+                payload: {
+                    tool_id: "upload1",
+                    history_id: history_id || this.currentHistory(),
+                    inputs: {}
+                },
+                files: [],
+                error_message: null
+            };
+            // add upload tools input data
+            if (items && items.length > 0) {
+                var inputs = {
+                    file_count: items.length,
+                    dbkey: items[0].get("genome", "?"),
+                    // sometimes extension set to "" in automated testing after first upload of
+                    // a session. https://github.com/galaxyproject/galaxy/issues/5169
+                    file_type: items[0].get("extension") || "auto"
+                };
+                for (var index in items) {
+                    var it = items[index];
+                    it.set("status", "running");
+                    if (it.get("file_size") > 0) {
+                        var prefix = "files_" + index + "|";
+                        inputs[prefix + "type"] = "upload_dataset";
+                        inputs[prefix + "space_to_tab"] = it.get("space_to_tab") && "Yes" || null;
+                        inputs[prefix + "to_posix_lines"] = it.get("to_posix_lines") && "Yes" || null;
+                        inputs[prefix + "dbkey"] = it.get("genome", null);
+                        inputs[prefix + "file_type"] = it.get("extension", null);
+                        switch (it.get("file_mode")) {
+                            case "new":
+                                inputs[prefix + "url_paste"] = it.get("url_paste");
+                                break;
+                            case "ftp":
+                                inputs[prefix + "ftp_files"] = it.get("file_path");
+                                break;
+                            case "local":
+                                data.files.push({
+                                    name: prefix + "file_data",
+                                    file: it.get("file_data")
+                                });
+                        }
+                    } else {
+                        data.error_message = "Upload content incomplete.";
+                        it.set("status", "error");
+                        it.set("info", data.error_message);
+                        break;
+                    }
+                }
+                data.payload.inputs = JSON.stringify(inputs);
+            }
+            return data;
+        }
+    });
+});
 //# sourceMappingURL=../../../maps/mvc/upload/upload-view.js.map

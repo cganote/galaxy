@@ -1,2 +1,665 @@
-define([],function(){var a=Backbone.View.extend({options:{frame:{cols:6,rows:3},rows:1e3,cell:130,margin:5,scroll:5,top_min:40,frame_max:9,visible:!0,onchange:null},cols:0,top:0,top_max:0,frame_z:0,frame_counter:0,frame_counter_id:0,frame_list:[],frame_shadow:null,visible:null,initialize:function(a){var b=this;a&&(this.options=_.defaults(a,this.options)),this.visible=this.options.visible,this.top=this.top_max=this.options.top_min,this.setElement(this._template()),$(this.el).append(this._templateBackground()),$(this.el).append(this._templateMenu()),$(this.el_main).append($(this.el));var c="#frame-shadow";$(this.el).append(this._templateShadow(c.substring(1))),this.frame_shadow={id:c,screen_location:{},grid_location:{},grid_rank:null,grid_lock:!1},this._frameResize(this.frame_shadow,{width:0,height:0}),this.frame_list[c]=this.frame_shadow,this._panelRefresh(),this.visible?this.show():this.hide();var b=this;$(window).resize(function(){b.visible&&b._panelRefresh()})},add:function(a){var b={title:"",content:null,target:"",type:null};if(a=a?_.defaults(a,b):b,a.content){if(this.frame_counter>=this.options.frame_max)return void alert("You have reached the maximum number of allowed frames ("+this.options.frame_max+").");var c="#frame-"+this.frame_counter_id++;if(0!==$(c).length)return void alert("This frame already exists. This page might contain multiple frame managers.");this.top=this.options.top_min;var d=null;if("url"===a.type)d=$(this._templateFrameUrl(c.substring(1),a.title,a.content));else if("other"===a.type){d=$(this._templateFrame(c.substring(1),a.title));var e=d.find(".f-content");_.isFunction(a.content)?a.content(e):e.append(a.content)}$(this.el).append(d);var f={id:c,screen_location:{},grid_location:{},grid_rank:null,grid_lock:!1};a.width=this._toPixelCoord("width",this.options.frame.cols),a.height=this._toPixelCoord("height",this.options.frame.rows),this.frame_z=parseInt($(f.id).css("z-index")),this.frame_list[c]=f,this.frame_counter++,this._frameResize(f,{width:a.width,height:a.height}),this._frameInsert(f,{top:0,left:0},!0),this.visible||this.show()}},show:function(){this.visible=!0,this.$el.find(".frame").fadeIn("fast"),this.$el.find(this.frame_shadow.id).hide(),this.$el.find(".frame-background").show(),this._panelRefresh(),this._menuRefresh()},hide:function(){null===this.event.type&&(this.visible=!1,this.$el.find(".frame").fadeOut("fast"),this.$el.find(".frame-background").hide(),this.$el.find(".frame-menu").hide(),this._menuRefresh())},length:function(){return this.frame_counter},setOnChange:function(a){this.options.onchange=a},event:{type:null,target:null,xy:null},events:{mousemove:"_eventFrameMouseMove",mouseup:"_eventFrameMouseUp",mouseleave:"_eventFrameMouseUp",mousewheel:"_eventPanelScroll",DOMMouseScroll:"_eventPanelScroll","mousedown .frame":"_eventFrameMouseDown","mousedown .frame-background":"_eventHide","mousedown .frame-scroll-up":"_eventPanelScroll_up","mousedown .frame-scroll-down":"_eventPanelScroll_down","mousedown .f-close":"_eventFrameClose","mousedown .f-pin":"_eventFrameLock"},_eventFrameMouseDown:function(a){if(null===this.event.type&&(($(a.target).hasClass("f-header")||$(a.target).hasClass("f-title"))&&(this.event.type="drag"),$(a.target).hasClass("f-resize")&&(this.event.type="resize"),null!==this.event.type)){if(a.preventDefault(),this.event.target=this._frameIdentify(a.target),this.event.target.grid_lock)return void(this.event.type=null);this.event.xy={x:a.originalEvent.pageX,y:a.originalEvent.pageY},this._frameDragStart(this.event.target)}},_eventFrameMouseMove:function(a){if("drag"==this.event.type||"resize"==this.event.type){var b={x:a.originalEvent.pageX,y:a.originalEvent.pageY},c={x:b.x-this.event.xy.x,y:b.y-this.event.xy.y};this.event.xy=b;var d=this._frameScreen(this.event.target);if("resize"==this.event.type){d.width+=c.x,d.height+=c.y;var e=this.options.cell-this.options.margin-1;d.width=Math.max(d.width,e),d.height=Math.max(d.height,e),this._frameResize(this.event.target,d),d.width=this._toGridCoord("width",d.width)+1,d.height=this._toGridCoord("height",d.height)+1,d.width=this._toPixelCoord("width",d.width),d.height=this._toPixelCoord("height",d.height),this._frameResize(this.frame_shadow,d),this._frameInsert(this.frame_shadow,{top:this._toGridCoord("top",d.top),left:this._toGridCoord("left",d.left)})}if("drag"==this.event.type){d.left+=c.x,d.top+=c.y,this._frameOffset(this.event.target,d);var f={top:this._toGridCoord("top",d.top),left:this._toGridCoord("left",d.left)};0!==f.left&&f.left++,this._frameInsert(this.frame_shadow,f)}}},_eventFrameMouseUp:function(){("drag"==this.event.type||"resize"==this.event.type)&&(this._frameDragStop(this.event.target),this.event.type=null)},_eventFrameClose:function(a){if(null===this.event.type){a.preventDefault();var b=this._frameIdentify(a.target),c=this;$(b.id).fadeOut("fast",function(){$(b.id).remove(),delete c.frame_list[b.id],c.frame_counter--,c._panelRefresh(!0),c._panelAnimationComplete(),c.visible&&0==c.frame_counter&&c.hide()})}},_eventFrameLock:function(a){if(null===this.event.type){a.preventDefault();var b=this._frameIdentify(a.target);b.grid_lock?(b.grid_lock=!1,$(b.id).find(".f-pin").removeClass("toggle"),$(b.id).find(".f-header").removeClass("f-not-allowed"),$(b.id).find(".f-title").removeClass("f-not-allowed"),$(b.id).find(".f-resize").show(),$(b.id).find(".f-close").show()):(b.grid_lock=!0,$(b.id).find(".f-pin").addClass("toggle"),$(b.id).find(".f-header").addClass("f-not-allowed"),$(b.id).find(".f-title").addClass("f-not-allowed"),$(b.id).find(".f-resize").hide(),$(b.id).find(".f-close").hide())}},_eventHide:function(){null===this.event.type&&this.hide()},_eventPanelScroll:function(a){if(null===this.event.type&&this.visible){var b=$(a.srcElement).parents(".frame");if(0!==b.length)return void a.stopPropagation();a.preventDefault();var c=a.originalEvent.detail?a.originalEvent.detail:a.originalEvent.wheelDelta/-3;this._panelScroll(c)}},_eventPanelScroll_up:function(a){null===this.event.type&&(a.preventDefault(),this._panelScroll(-this.options.scroll))},_eventPanelScroll_down:function(a){null===this.event.type&&(a.preventDefault(),this._panelScroll(this.options.scroll))},_frameIdentify:function(a){return this.frame_list["#"+$(a).closest(".frame").attr("id")]},_frameDragStart:function(a){this._frameFocus(a,!0);var b=this._frameScreen(a);this._frameResize(this.frame_shadow,b),this._frameGrid(this.frame_shadow,a.grid_location),a.grid_location=null,$(this.frame_shadow.id).show(),$(".f-cover").show()},_frameDragStop:function(a){this._frameFocus(a,!1);var b=this._frameScreen(this.frame_shadow);this._frameResize(a,b),this._frameGrid(a,this.frame_shadow.grid_location,!0),this.frame_shadow.grid_location=null,$(this.frame_shadow.id).hide(),$(".f-cover").hide(),this._panelAnimationComplete()},_toGridCoord:function(a,b){var c="width"==a||"height"==a?1:-1;return"top"==a&&(b-=this.top),parseInt((b+c*this.options.margin)/this.options.cell,10)},_toPixelCoord:function(a,b){var c="width"==a||"height"==a?1:-1,d=b*this.options.cell-c*this.options.margin;return"top"==a&&(d+=this.top),d},_toGrid:function(a){return{top:this._toGridCoord("top",a.top),left:this._toGridCoord("left",a.left),width:this._toGridCoord("width",a.width),height:this._toGridCoord("height",a.height)}},_toPixel:function(a){return{top:this._toPixelCoord("top",a.top),left:this._toPixelCoord("left",a.left),width:this._toPixelCoord("width",a.width),height:this._toPixelCoord("height",a.height)}},_isCollision:function(a){function b(a,b){return!(a.left>b.left+b.width-1||a.left+a.width-1<b.left||a.top>b.top+b.height-1||a.top+a.height-1<b.top)}for(var c in this.frame_list){var d=this.frame_list[c];if(null!==d.grid_location&&b(a,d.grid_location))return!0}return!1},_locationRank:function(a){return a.top*this.cols+a.left},_menuRefresh:function(){this.visible&&(this.top==this.options.top_min?$(".frame-scroll-up").hide():$(".frame-scroll-up").show(),this.top==this.top_max?$(".frame-scroll-down").hide():$(".frame-scroll-down").show()),this.options.onchange&&this.options.onchange()},_panelAnimationComplete:function(){var a=this;$(".frame").promise().done(function(){a._panelScroll(0,!0)})},_panelRefresh:function(a){this.cols=parseInt($(window).width()/this.options.cell,10)+1,this._frameInsert(null,null,a)},_panelScroll:function(a,b){var c=this.top-this.options.scroll*a;if(c=Math.max(c,this.top_max),c=Math.min(c,this.options.top_min),this.top!=c){for(var d in this.frame_list){var e=this.frame_list[d];if(null!==e.grid_location){var f={top:e.screen_location.top-(this.top-c),left:e.screen_location.left};this._frameOffset(e,f,b)}}this.top=c}this._menuRefresh()},_frameInsert:function(a,b,c){var d=[];a&&(a.grid_location=null,d.push([a,this._locationRank(b)]));var e=null;for(e in this.frame_list){var f=this.frame_list[e];null===f.grid_location||f.grid_lock||(f.grid_location=null,d.push([f,f.grid_rank]))}for(d.sort(function(a,b){var c=a[1],d=b[1];return d>c?-1:c>d?1:0}),e=0;e<d.length;e++)this._framePlace(d[e][0],c);this.top_max=0;for(var e in this.frame_list){var a=this.frame_list[e];null!==a.grid_location&&(this.top_max=Math.max(this.top_max,a.grid_location.top+a.grid_location.height))}this.top_max=$(window).height()-this.top_max*this.options.cell-2*this.options.margin,this.top_max=Math.min(this.top_max,this.options.top_min),this._menuRefresh()},_framePlace:function(a,b){a.grid_location=null;for(var c=this._toGrid(this._frameScreen(a)),d=!1,e=0;e<this.options.rows;e++){for(var f=0;f<Math.max(1,this.cols-c.width);f++)if(c.top=e,c.left=f,!this._isCollision(c)){d=!0;break}if(d)break}d?this._frameGrid(a,c,b):console.log("Grid dimensions exceeded.")},_frameFocus:function(a,b){var c=this.frame_z+(b?1:0);$(a.id).css("z-index",c)},_frameOffset:function(a,b,c){if(a.screen_location.left=b.left,a.screen_location.top=b.top,c){this._frameFocus(a,!0);var d=this;$(a.id).animate({top:b.top,left:b.left},"fast",function(){d._frameFocus(a,!1)})}else $(a.id).css({top:b.top,left:b.left})},_frameResize:function(a,b){$(a.id).css({width:b.width,height:b.height}),a.screen_location.width=b.width,a.screen_location.height=b.height},_frameGrid:function(a,b,c){a.grid_location=b,this._frameOffset(a,this._toPixel(b),c),a.grid_rank=this._locationRank(b)},_frameScreen:function(a){var b=a.screen_location;return{top:b.top,left:b.left,width:b.width,height:b.height}},_template:function(){return'<div class="galaxy-frame"></div>'},_templateFrame:function(a,b){return b||(b=""),'<div id="'+a+'" class="frame corner"><div class="f-header corner"><span class="f-title">'+b+'</span><span class="f-icon f-close fa fa-trash-o"></span><span class="f-icon f-pin fa fa-thumb-tack"></span></div><div class="f-content"><div class="f-cover"></div></div><span class="f-resize f-icon corner fa fa-expand"></span></div>'},_templateFrameUrl:function(a,b,c){c+=-1==c.indexOf("?")?"?":"&",c+="widget=True";var d=$(this._templateFrame(a,b));return d.find(".f-content").append('<iframe scrolling="auto" class="f-iframe" src="'+c+'"></iframe>'),d},_templateShadow:function(a){return'<div id="'+a+'" class="frame-shadow corner"></div>'},_templateBackground:function(){return'<div class="frame-background"></div>'},_templateMenu:function(){return'<div class="frame-scroll-up frame-menu fa fa-chevron-up fa-2x"></div><div class="frame-scroll-down frame-menu fa fa-chevron-down fa-2x"></div>'}});return{View:a}});
+define("mvc/ui/ui-frames", ["exports", "utils/localization", "backbone", "underscore"], function(exports, _localization, _backbone, _underscore) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var _localization2 = _interopRequireDefault(_localization);
+
+    var Backbone = _interopRequireWildcard(_backbone);
+
+    var _ = _interopRequireWildcard(_underscore);
+
+    function _interopRequireWildcard(obj) {
+        if (obj && obj.__esModule) {
+            return obj;
+        } else {
+            var newObj = {};
+
+            if (obj != null) {
+                for (var key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key];
+                }
+            }
+
+            newObj.default = obj;
+            return newObj;
+        }
+    }
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    /* global $ */
+    /* global Galaxy */
+
+    var FrameView = Backbone.View.extend({
+        initialize: function initialize(options) {
+            this.model = options && options.model || new Backbone.Model(options);
+            this.setElement($("<div/>").addClass("corner frame"));
+            this.$el.append($("<div/>").addClass("f-header corner").append($("<div/>").addClass("f-title")).append($("<div/>").addClass("f-icon f-close fa fa-close").tooltip({
+                title: (0, _localization2.default)("Close"),
+                placement: "bottom"
+            }))).append($("<div/>").addClass("f-content")).append($("<div/>").addClass("f-resize f-icon corner fa fa-expand").tooltip({
+                title: "Resize"
+            })).append($("<div/>").addClass("f-cover"));
+            this.$header = this.$(".f-header");
+            this.$title = this.$(".f-title");
+            this.$content = this.$(".f-content");
+            this.render();
+            this.listenTo(this.model, "change", this.render, this);
+        },
+
+        render: function render() {
+            var self = this;
+            var options = this.model.attributes;
+            this.$title.html(options.title || "");
+            this.$header.find(".f-icon-left").remove();
+            _.each(options.menu, function(option) {
+                var $option = $("<div/>").addClass("f-icon-left").addClass(option.icon);
+                if (_.isFunction(option.disabled) && option.disabled()) {
+                    $option.attr("disabled", true);
+                } else {
+                    $option.on("click", function() {
+                        option.onclick(self);
+                    }).tooltip({
+                        title: option.tooltip || "",
+                        placement: "bottom"
+                    });
+                }
+                self.$header.append($option);
+            });
+            if (options.url) {
+                this.$content.html($("<iframe/>").addClass("f-iframe").attr("scrolling", "auto").attr("src", options.url + (options.url.indexOf("?") === -1 ? "?" : "&") + "widget=True"));
+            } else if (options.content) {
+                if (_.isFunction(options.content)) {
+                    options.content(self.$content);
+                } else {
+                    self.$content.html(options.content);
+                }
+            }
+        }
+    });
+
+    /** Scratchbook viewer */
+    /** Frame view */
+    var View = Backbone.View.extend({
+        defaultOptions: {
+            frame: {
+                // default frame size in cells
+                cols: 6,
+                rows: 3
+            },
+            rows: 1000, // maximum number of rows
+            cell: 130, // cell size in px
+            margin: 5, // margin between frames
+            scroll: 5, // scroll speed
+            top_min: 40, // top margin
+            frame_max: 9, // maximum number of frames
+            visible: true // initial visibility
+        },
+
+        cols: 0, // number of columns
+        top: 0, // scroll/element top
+        top_max: 0, // viewport scrolling state
+        frame_z: 0, // frame z-index
+        frame_counter: 0, // frame counter
+        frame_uid: 0, // unique frame id counter
+        frame_list: {}, // list of all frames
+        frame_shadow: null, // frame shown as placeholder when moving active frames
+        visible: false, // flag indicating if scratchbook viewer is visible or not
+        event: {}, // dictionary keeping track of current event
+
+        initialize: function initialize(options) {
+            var self = this;
+            this.options = _.defaults(options || {}, this.defaultOptions);
+            this.visible = this.options.visible;
+            this.top = this.top_max = this.options.top_min;
+            this.setElement($("<div/>").addClass("galaxy-frame").append($("<div/>").addClass("frame-background")).append($("<div/>").addClass("frame-menu frame-scroll-up fa fa-chevron-up fa-2x")).append($("<div/>").addClass("frame-menu frame-scroll-down fa fa-chevron-down fa-2x")));
+
+            // initialize shadow to guiding drag/resize events
+            this.frame_shadow = new Backbone.View({
+                el: $("<div/>").addClass("corner frame-shadow")
+            });
+            this.$el.append(this.frame_shadow.$el);
+            this._frameInit(this.frame_shadow, "#frame-shadow");
+            this._frameResize(this.frame_shadow, {
+                width: 0,
+                height: 0
+            });
+            this.frame_list["#frame-shadow"] = this.frame_shadow;
+
+            // initialize panel
+            if (this.visible) {
+                this.show();
+            } else {
+                this.hide();
+            }
+            this._panelRefresh();
+            $(window).resize(function() {
+                if (self.visible) {
+                    self._panelRefresh();
+                }
+            });
+        },
+
+        /** Render */
+        render: function render() {
+            this.$(".frame-scroll-up")[this.top != this.options.top_min && "show" || "hide"]();
+            this.$(".frame-scroll-down")[this.top != this.top_max && "show" || "hide"]();
+        },
+
+        /**
+         * Adds and displays a new frame.
+         *
+         * options:
+         *  url     : loaded into an iframe
+         *  content : content is treated as a function or raw HTML, function is passed a single
+         *              argument that is the frame's content DOM element
+         */
+        add: function add(options) {
+            if (this.frame_counter >= this.options.frame_max) {
+                Galaxy.modal.show({
+                    title: (0, _localization2.default)("Warning"),
+                    body: "You have reached the maximum number of allowed frames (" + this.options.frame_max + ").",
+                    buttons: {
+                        Close: function Close() {
+                            Galaxy.modal.hide();
+                        }
+                    }
+                });
+            } else {
+                var frame_id = "#frame-" + this.frame_uid++;
+                if ($(frame_id).length !== 0) {
+                    Galaxy.modal.show({
+                        title: (0, _localization2.default)("Error"),
+                        body: "This frame already exists. This page might contain multiple frame managers.",
+                        buttons: {
+                            Close: function Close() {
+                                Galaxy.modal.hide();
+                            }
+                        }
+                    });
+                } else {
+                    // initialize new frame elements
+                    this.top = this.options.top_min;
+                    var frame = new FrameView(options);
+                    this.$el.append(frame.$el);
+
+                    // set dimensions
+                    options.width = this._toPixelCoord("width", this.options.frame.cols);
+                    options.height = this._toPixelCoord("height", this.options.frame.rows);
+
+                    // set default z-index and add to ui and frame list
+                    this.frame_z = parseInt(frame.$el.css("z-index"));
+                    this.frame_list[frame_id] = frame;
+                    this.frame_counter++;
+                    this._frameInit(frame, frame_id);
+                    this._frameResize(frame, {
+                        width: options.width,
+                        height: options.height
+                    });
+                    this._frameInsert(frame, {
+                        top: 0,
+                        left: 0
+                    }, true);
+                    if (!this.visible) {
+                        this.show();
+                    }
+                    this.trigger("add");
+                }
+            }
+        },
+
+        /** Remove a frame */
+        del: function del(frame) {
+            var self = this;
+            var $frame = frame.$el;
+            $frame.fadeOut("fast", function() {
+                $frame.remove();
+                delete self.frame_list[frame.id];
+                self.frame_counter--;
+                self._panelRefresh(true);
+                self._panelAnimationComplete();
+                self.trigger("remove");
+            });
+        },
+
+        /** Show panel */
+        show: function show() {
+            this.visible = true;
+            this.$el.fadeIn("fast");
+            this.trigger("show");
+        },
+
+        /** Hide panel */
+        hide: function hide() {
+            if (!this.event.type) {
+                this.visible = false;
+                this.$el.fadeOut("fast", function() {
+                    $(this).hide();
+                });
+                this.trigger("hide");
+            }
+        },
+
+        /** Returns the number of frames */
+        length: function length() {
+            return this.frame_counter;
+        },
+
+        /*
+            EVENT HANDLING
+        */
+        events: {
+            // global frame events
+            mousemove: "_eventFrameMouseMove",
+            mouseup: "_eventFrameMouseUp",
+            mouseleave: "_eventFrameMouseUp",
+            mousewheel: "_eventPanelScroll",
+            DOMMouseScroll: "_eventPanelScroll",
+
+            // events fixed to elements
+            "mousedown .frame": "_eventFrameMouseDown",
+            "mousedown .frame-background": "_eventHide",
+            "mousedown .frame-scroll-up": "_eventPanelScroll_up",
+            "mousedown .frame-scroll-down": "_eventPanelScroll_down",
+            "mousedown .f-close": "_eventFrameClose"
+        },
+
+        /** Start drag/resize event */
+        _eventFrameMouseDown: function _eventFrameMouseDown(e) {
+            $(".tooltip").hide();
+            if (!this.event.type) {
+                if ($(e.target).hasClass("f-header") || $(e.target).hasClass("f-title")) {
+                    this.event.type = "drag";
+                }
+                if ($(e.target).hasClass("f-resize")) {
+                    this.event.type = "resize";
+                }
+                if (this.event.type) {
+                    e.preventDefault();
+                    this.event.target = this._frameIdentify(e.target);
+                    this.event.xy = {
+                        x: e.originalEvent.pageX,
+                        y: e.originalEvent.pageY
+                    };
+                    this._frameDragStart(this.event.target);
+                }
+            }
+        },
+
+        /** Processes drag/resize events */
+        _eventFrameMouseMove: function _eventFrameMouseMove(e) {
+            if (this.event.type) {
+                // get mouse motion and delta
+                var event_xy_new = {
+                    x: e.originalEvent.pageX,
+                    y: e.originalEvent.pageY
+                };
+                var event_xy_delta = {
+                    x: event_xy_new.x - this.event.xy.x,
+                    y: event_xy_new.y - this.event.xy.y
+                };
+                this.event.xy = event_xy_new;
+
+                // get current screen position and size of frame
+                var p = this._frameScreen(this.event.target);
+
+                // drag/resize event
+                if (this.event.type == "resize") {
+                    p.width += event_xy_delta.x;
+                    p.height += event_xy_delta.y;
+                    var min_dim = this.options.cell - this.options.margin - 1;
+                    p.width = Math.max(p.width, min_dim);
+                    p.height = Math.max(p.height, min_dim);
+                    this._frameResize(this.event.target, p);
+                    p.width = this._toGridCoord("width", p.width) + 1;
+                    p.height = this._toGridCoord("height", p.height) + 1;
+                    p.width = this._toPixelCoord("width", p.width);
+                    p.height = this._toPixelCoord("height", p.height);
+                    this._frameResize(this.frame_shadow, p);
+                    this._frameInsert(this.frame_shadow, {
+                        top: this._toGridCoord("top", p.top),
+                        left: this._toGridCoord("left", p.left)
+                    });
+                } else if (this.event.type == "drag") {
+                    p.left += event_xy_delta.x;
+                    p.top += event_xy_delta.y;
+                    this._frameOffset(this.event.target, p);
+                    var l = {
+                        top: this._toGridCoord("top", p.top),
+                        left: this._toGridCoord("left", p.left)
+                    };
+                    if (l.left !== 0) {
+                        l.left++;
+                    }
+                    this._frameInsert(this.frame_shadow, l);
+                }
+            }
+        },
+
+        /** Stop drag/resize events */
+        _eventFrameMouseUp: function _eventFrameMouseUp(e) {
+            if (this.event.type) {
+                this._frameDragStop(this.event.target);
+                this.event.type = null;
+            }
+        },
+
+        /** Destroy a frame */
+        _eventFrameClose: function _eventFrameClose(e) {
+            if (!this.event.type) {
+                e.preventDefault();
+                this.del(this._frameIdentify(e.target));
+            }
+        },
+
+        /** Hide all frames */
+        _eventHide: function _eventHide(e) {
+            if (!this.event.type) {
+                this.hide();
+            }
+        },
+
+        /** Fired when scrolling occurs on panel */
+        _eventPanelScroll: function _eventPanelScroll(e) {
+            if (!this.event.type && this.visible) {
+                // Stop propagation if scrolling is happening inside a frame.
+                // TODO: could propagate scrolling if at top/bottom of frame.
+                var frames = $(e.srcElement).parents(".frame");
+                if (frames.length !== 0) {
+                    e.stopPropagation();
+                } else {
+                    e.preventDefault();
+                    this._panelScroll(e.originalEvent.detail ? e.originalEvent.detail : e.originalEvent.wheelDelta / -3);
+                }
+            }
+        },
+
+        /** Handle scroll up event */
+        _eventPanelScroll_up: function _eventPanelScroll_up(e) {
+            if (!this.event.type) {
+                e.preventDefault();
+                this._panelScroll(-this.options.scroll);
+            }
+        },
+
+        /** Handle scroll down */
+        _eventPanelScroll_down: function _eventPanelScroll_down(e) {
+            if (!this.event.type) {
+                e.preventDefault();
+                this._panelScroll(this.options.scroll);
+            }
+        },
+
+        /*
+            FRAME EVENTS SUPPORT
+        */
+
+        /** Identify the target frame */
+        _frameIdentify: function _frameIdentify(target) {
+            return this.frame_list["#" + $(target).closest(".frame").attr("id")];
+        },
+
+        /** Provides drag support */
+        _frameDragStart: function _frameDragStart(frame) {
+            this._frameFocus(frame, true);
+            var p = this._frameScreen(frame);
+            this._frameResize(this.frame_shadow, p);
+            this._frameGrid(this.frame_shadow, frame.grid_location);
+            frame.grid_location = null;
+            this.frame_shadow.$el.show();
+            $(".f-cover").show();
+        },
+
+        /** Removes drag support */
+        _frameDragStop: function _frameDragStop(frame) {
+            this._frameFocus(frame, false);
+            var p = this._frameScreen(this.frame_shadow);
+            this._frameResize(frame, p);
+            this._frameGrid(frame, this.frame_shadow.grid_location, true);
+            this.frame_shadow.grid_location = null;
+            this.frame_shadow.$el.hide();
+            $(".f-cover").hide();
+            this._panelAnimationComplete();
+        },
+
+        /*
+            GRID/PIXEL CONVERTER
+        */
+
+        /** Converts a pixel to a grid dimension */
+        _toGridCoord: function _toGridCoord(type, px) {
+            var sign = type == "width" || type == "height" ? 1 : -1;
+            if (type == "top") {
+                px -= this.top;
+            }
+            return parseInt((px + sign * this.options.margin) / this.options.cell, 10);
+        },
+
+        /** Converts a grid to a pixels dimension */
+        _toPixelCoord: function _toPixelCoord(type, g) {
+            var sign = type == "width" || type == "height" ? 1 : -1;
+            var px = g * this.options.cell - sign * this.options.margin;
+            if (type == "top") {
+                px += this.top;
+            }
+            return px;
+        },
+
+        /** Converts a pixel to a grid coordinate set */
+        _toGrid: function _toGrid(px) {
+            return {
+                top: this._toGridCoord("top", px.top),
+                left: this._toGridCoord("left", px.left),
+                width: this._toGridCoord("width", px.width),
+                height: this._toGridCoord("height", px.height)
+            };
+        },
+
+        /** Converts a pixel to a grid coordinate set */
+        _toPixel: function _toPixel(g) {
+            return {
+                top: this._toPixelCoord("top", g.top),
+                left: this._toPixelCoord("left", g.left),
+                width: this._toPixelCoord("width", g.width),
+                height: this._toPixelCoord("height", g.height)
+            };
+        },
+
+        /* 
+            COLLISION DETECTION
+        */
+
+        /** Check collisions for a grid coordinate set */
+        _isCollision: function _isCollision(g) {
+            function is_collision_pair(a, b) {
+                return !(a.left > b.left + b.width - 1 || a.left + a.width - 1 < b.left || a.top > b.top + b.height - 1 || a.top + a.height - 1 < b.top);
+            }
+            for (var i in this.frame_list) {
+                var frame = this.frame_list[i];
+                if (frame.grid_location !== null && is_collision_pair(g, frame.grid_location)) {
+                    return true;
+                }
+            }
+            return false;
+        },
+
+        /** Return location/grid rank */
+        _locationRank: function _locationRank(loc) {
+            return loc.top * this.cols + loc.left;
+        },
+
+        /*
+            PANEL/WINDOW FUNCTIONS
+        */
+
+        /** Refresh panel */
+        _panelRefresh: function _panelRefresh(animate) {
+            this.cols = parseInt($(window).width() / this.options.cell, 10) + 1;
+            this._frameInsert(null, null, animate);
+        },
+
+        /** Complete panel animation / frames not moving */
+        _panelAnimationComplete: function _panelAnimationComplete() {
+            var self = this;
+            $(".frame").promise().done(function() {
+                self._panelScroll(0, true);
+            });
+        },
+
+        /** Scroll panel */
+        _panelScroll: function _panelScroll(delta, animate) {
+            var top_new = this.top - this.options.scroll * delta;
+            top_new = Math.max(top_new, this.top_max);
+            top_new = Math.min(top_new, this.options.top_min);
+            if (this.top != top_new) {
+                for (var i in this.frame_list) {
+                    var frame = this.frame_list[i];
+                    if (frame.grid_location !== null) {
+                        var screen_location = {
+                            top: frame.screen_location.top - (this.top - top_new),
+                            left: frame.screen_location.left
+                        };
+                        this._frameOffset(frame, screen_location, animate);
+                    }
+                }
+                this.top = top_new;
+            }
+            this.render();
+        },
+
+        /*
+            FRAME FUNCTIONS
+        */
+
+        /** Initialize a new frame */
+        _frameInit: function _frameInit(frame, id) {
+            frame.id = id;
+            frame.screen_location = {};
+            frame.grid_location = {};
+            frame.grid_rank = null;
+            frame.$el.attr("id", id.substring(1));
+        },
+
+        /** Insert frame at given location */
+        _frameInsert: function _frameInsert(frame, new_loc, animate) {
+            var self = this;
+            var place_list = [];
+            if (frame) {
+                frame.grid_location = null;
+                place_list.push([frame, this._locationRank(new_loc)]);
+            }
+            _.each(this.frame_list, function(f) {
+                if (f.grid_location !== null) {
+                    f.grid_location = null;
+                    place_list.push([f, f.grid_rank]);
+                }
+            });
+            place_list.sort(function(a, b) {
+                return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0;
+            });
+            _.each(place_list, function(place) {
+                self._framePlace(place[0], animate);
+            });
+            this.top_max = 0;
+            _.each(this.frame_list, function(f) {
+                if (f.grid_location !== null) {
+                    self.top_max = Math.max(self.top_max, f.grid_location.top + f.grid_location.height);
+                }
+            });
+            this.top_max = $(window).height() - this.top_max * this.options.cell - 2 * this.options.margin;
+            this.top_max = Math.min(this.top_max, this.options.top_min);
+            this.render();
+        },
+
+        /** Naive frame placement */
+        _framePlace: function _framePlace(frame, animate) {
+            frame.grid_location = null;
+            var g = this._toGrid(this._frameScreen(frame));
+            var done = false;
+            for (var i = 0; i < this.options.rows; i++) {
+                for (var j = 0; j < Math.max(1, this.cols - g.width); j++) {
+                    g.top = i;
+                    g.left = j;
+                    if (!this._isCollision(g)) {
+                        done = true;
+                        break;
+                    }
+                }
+                if (done) {
+                    break;
+                }
+            }
+            if (done) {
+                this._frameGrid(frame, g, animate);
+            } else {
+                console.log("Grid dimensions exceeded.");
+            }
+        },
+
+        /** Handle frame focussing */
+        _frameFocus: function _frameFocus(frame, has_focus) {
+            frame.$el.css("z-index", this.frame_z + (has_focus ? 1 : 0));
+        },
+
+        /** New left/top position frame */
+        _frameOffset: function _frameOffset(frame, p, animate) {
+            frame.screen_location.left = p.left;
+            frame.screen_location.top = p.top;
+            if (animate) {
+                this._frameFocus(frame, true);
+                var self = this;
+                frame.$el.animate({
+                    top: p.top,
+                    left: p.left
+                }, "fast", function() {
+                    self._frameFocus(frame, false);
+                });
+            } else {
+                frame.$el.css({
+                    top: p.top,
+                    left: p.left
+                });
+            }
+        },
+
+        /** Resize frame */
+        _frameResize: function _frameResize(frame, p) {
+            frame.$el.css({
+                width: p.width,
+                height: p.height
+            });
+            frame.screen_location.width = p.width;
+            frame.screen_location.height = p.height;
+        },
+
+        /** Push frame to new grid location */
+        _frameGrid: function _frameGrid(frame, l, animate) {
+            frame.grid_location = l;
+            this._frameOffset(frame, this._toPixel(l), animate);
+            frame.grid_rank = this._locationRank(l);
+        },
+
+        /** Get frame dimensions */
+        _frameScreen: function _frameScreen(frame) {
+            var p = frame.screen_location;
+            return {
+                top: p.top,
+                left: p.left,
+                width: p.width,
+                height: p.height
+            };
+        }
+    });
+
+    exports.default = {
+        View: View
+    };
+});
 //# sourceMappingURL=../../../maps/mvc/ui/ui-frames.js.map

@@ -1,2 +1,130 @@
-define(["utils/utils","mvc/ui/ui-table","mvc/ui/ui-portlet","mvc/ui/ui-misc"],function(a,b,c,d){var e=Backbone.View.extend({optionsDefault:{title:"Section",max:null,min:null},initialize:function(c){this.options=a.merge(c,this.optionsDefault),this.setElement("<div/>");this.button_new=new d.ButtonIcon({icon:"fa-plus",title:"Insert "+c.title_new,tooltip:"Add new "+c.title_new+" block",floating:"clear",onclick:function(){c.onnew&&c.onnew()}}),this.table=new b.View({cls:"ui-table-plain",content:""}),this.$el.append(this.table.$el),this.$el.append($("<div/>").append(this.button_new.$el)),this.list={},this.n=0},size:function(){return this.n},add:function(a){if(!a.id||this.list[a.id])return void console.debug("form-repeat::add - Duplicate repeat block id.");this.n++;var b=new d.ButtonIcon({icon:"fa-trash-o",tooltip:"Delete this repeat block",cls:"ui-button-icon-plain",onclick:function(){a.ondel&&a.ondel()}}),e=new c.View({id:a.id,title:"placeholder",cls:"ui-portlet-repeat",operations:{button_delete:b}});e.append(a.$el),e.$el.addClass("section-row"),this.list[a.id]=e,this.table.add(e.$el),this.table.append("row_"+a.id,!0),this.options.max>0&&this.n>=this.options.max&&this.button_new.disable(),this._refresh()},del:function(a){if(!this.list[a])return void console.debug("form-repeat::del - Invalid repeat block id.");this.n--;var b=this.table.get("row_"+a);b.remove(),delete this.list[a],this.button_new.enable(),this._refresh()},_refresh:function(){var a=0;for(var b in this.list){var c=this.list[b];c.title(++a+": "+this.options.title),this.n>this.options.min?c.showOperation("button_delete"):c.hideOperation("button_delete")}}});return{View:e}});
+define("mvc/form/form-repeat", ["exports", "utils/localization", "utils/utils", "mvc/ui/ui-portlet", "mvc/ui/ui-misc"], function(exports, _localization, _utils, _uiPortlet, _uiMisc) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+    exports.View = undefined;
+
+    var _localization2 = _interopRequireDefault(_localization);
+
+    var _utils2 = _interopRequireDefault(_utils);
+
+    var _uiPortlet2 = _interopRequireDefault(_uiPortlet);
+
+    var _uiMisc2 = _interopRequireDefault(_uiMisc);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    var View = exports.View = Backbone.View.extend({
+        initialize: function initialize(options) {
+            this.list = {};
+            this.options = _utils2.default.merge(options, {
+                title: (0, _localization2.default)("Repeat"),
+                empty_text: "Not available.",
+                max: null,
+                min: null
+            });
+            this.button_new = new _uiMisc2.default.ButtonIcon({
+                icon: "fa-plus",
+                title: "Insert " + this.options.title,
+                tooltip: "Add new " + this.options.title + " block",
+                cls: "ui-button-icon ui-clear-float form-repeat-add",
+                onclick: function onclick() {
+                    if (options.onnew) {
+                        options.onnew();
+                    }
+                }
+            });
+            this.setElement($("<div/>").append(this.$list = $("<div/>")).append($("<div/>").append(this.button_new.$el)));
+        },
+
+        /** Number of repeat blocks */
+        size: function size() {
+            return _.size(this.list);
+        },
+
+        /** Add new repeat block */
+        add: function add(options) {
+            if (!options.id || this.list[options.id]) {
+                Galaxy.emit.debug("form-repeat::add()", "Duplicate or invalid repeat block id.");
+                return;
+            }
+            var button_delete = new _uiMisc2.default.ButtonIcon({
+                icon: "fa-trash-o",
+                tooltip: (0, _localization2.default)("Delete this repeat block"),
+                cls: "ui-button-icon-plain form-repeat-delete",
+                onclick: function onclick() {
+                    if (options.ondel) {
+                        options.ondel();
+                    }
+                }
+            });
+            var portlet = new _uiPortlet2.default.View({
+                id: options.id,
+                title: (0, _localization2.default)("placeholder"),
+                cls: options.cls || "ui-portlet-repeat",
+                operations: {
+                    button_delete: button_delete
+                }
+            });
+            portlet.append(options.$el);
+            portlet.$el.addClass("section-row").hide();
+            this.list[options.id] = portlet;
+            this.$list.append(portlet.$el.fadeIn("fast"));
+            if (this.options.max > 0 && this.size() >= this.options.max) {
+                this.button_new.disable();
+            }
+            this._refresh();
+        },
+
+        /** Delete repeat block */
+        del: function del(id) {
+            if (!this.list[id]) {
+                Galaxy.emit.debug("form-repeat::del()", "Invalid repeat block id.");
+                return;
+            }
+            this.$list.find("#" + id).remove();
+            delete this.list[id];
+            this.button_new.enable();
+            this._refresh();
+        },
+
+        /** Remove all */
+        delAll: function delAll() {
+            for (var id in this.list) {
+                this.del(id);
+            }
+        },
+
+        /** Hides add/del options */
+        hideOptions: function hideOptions() {
+            this.button_new.$el.hide();
+            _.each(this.list, function(portlet) {
+                portlet.hideOperation("button_delete");
+            });
+            if (_.isEmpty(this.list)) {
+                this.$el.append($("<div/>").addClass("ui-form-info").html(this.options.empty_text));
+            }
+        },
+
+        /** Refresh view */
+        _refresh: function _refresh() {
+            var index = 0;
+            for (var id in this.list) {
+                var portlet = this.list[id];
+                portlet.title(++index + ": " + this.options.title);
+                portlet[this.size() > this.options.min ? "showOperation" : "hideOperation"]("button_delete");
+            }
+        }
+    });
+    /** This class creates a ui component which enables the dynamic creation of portlets */
+    exports.default = {
+        View: View
+    };
+});
 //# sourceMappingURL=../../../maps/mvc/form/form-repeat.js.map

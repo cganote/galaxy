@@ -1,2 +1,152 @@
-!function(a){"function"==typeof define&&define.amd?define([],a):a(jQuery)}(function(){function a(a,c){function d(){var a=$(this).parent().children("input");a.focus().val("").trigger("clear:searchInput"),c.onclear()}function e(a,b){$(this).trigger("search:searchInput",b),"function"==typeof c.onfirstsearch&&n?(n=!1,c.onfirstsearch(b)):c.onsearch(b)}function f(){return['<input type="text" name="',c.name,'" placeholder="',c.placeholder,'" ','class="search-query ',c.classes,'" ',"/>"].join("")}function g(){return $(f()).focus(function(){$(this).select()}).keyup(function(a){if(a.preventDefault(),a.stopPropagation(),$(this).val()||$(this).blur(),a.which===k&&c.escWillClear)d.call(this,a);else{var b=$(this).val();a.which===l||c.minSearchLen&&b.length>=c.minSearchLen?e.call(this,a,b):b.length||d.call(this,a)}}).on("change",function(a){e.call(this,a,$(this).val())}).val(c.initialVal)}function h(){return $(['<span class="search-clear fa fa-times-circle" ','title="',b("clear search (esc)"),'"></span>'].join("")).tooltip({placement:"bottom"}).click(function(a){d.call(this,a)})}function i(){return $(['<span class="search-loading fa fa-spinner fa-spin" ','title="',b("loading..."),'"></span>'].join("")).hide().tooltip({placement:"bottom"})}function j(){m.find(".search-loading").toggle(),m.find(".search-clear").toggle()}var k=27,l=13,m=$(a),n=!0,o={initialVal:"",name:"search",placeholder:"search",classes:"",onclear:function(){},onfirstsearch:null,onsearch:function(){},minSearchLen:0,escWillClear:!0,oninit:function(){}};return"string"===jQuery.type(c)?("toggle-loading"===c&&j(),m):("object"===jQuery.type(c)&&(c=jQuery.extend(!0,{},o,c)),m.addClass("search-input").prepend([g(),h(),i()]))}var b=window._l||function(a){return a};jQuery.fn.extend({searchInput:function(b){return this.each(function(){return a(this,b)})}})});
+define("ui/search-input", ["jquery"], function(_jquery) {
+    "use strict";
+
+    var _jquery2 = _interopRequireDefault(_jquery);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    "use_strict";
+
+    var $ = _jquery2.default;
+    var _l = window._l || function(s) {
+        return s;
+    };
+
+    //TODO: consolidate with tool menu functionality, use there
+
+    /** searchInput: (jQuery plugin)
+     *      Creates a search input, a clear button, and loading indicator
+     *      within the selected node.
+     *
+     *      When the user either presses return or enters some minimal number
+     *      of characters, a callback is called. Pressing ESC when the input
+     *      is focused will clear the input and call a separate callback.
+     */
+    function searchInput(parentNode, options) {
+        var KEYCODE_ESC = 27;
+        var KEYCODE_RETURN = 13;
+        var $parentNode = $(parentNode);
+        var firstSearch = true;
+
+        var defaults = {
+            initialVal: "",
+            name: "search",
+            placeholder: "search",
+            classes: "",
+            onclear: function onclear() {},
+            onfirstsearch: null,
+            onsearch: function onsearch(inputVal) {},
+            minSearchLen: 0,
+            escWillClear: true,
+            oninit: function oninit() {}
+        };
+
+        // .................................................................... input rendering and events
+        // visually clear the search, trigger an event, and call the callback
+        function clearSearchInput(event) {
+            var $input = $(this).parent().children("input");
+            $input.val("").trigger("searchInput.clear").blur();
+            options.onclear();
+        }
+
+        // search for searchTerms, trigger an event, call the appropo callback (based on whether this is the first)
+        function search(event, searchTerms) {
+            if (!searchTerms) {
+                return clearSearchInput();
+            }
+            $(this).trigger("search.search", searchTerms);
+            if (typeof options.onfirstsearch === "function" && firstSearch) {
+                firstSearch = false;
+                options.onfirstsearch(searchTerms);
+            } else {
+                options.onsearch(searchTerms);
+            }
+        }
+
+        // .................................................................... input rendering and events
+        function inputTemplate() {
+            // class search-query is bootstrap 2.3 style that now lives in base.less
+            return ['<input type="text" name="', options.name, '" placeholder="', options.placeholder, '" ', 'class="search-query ', options.classes, '" ', "/>"].join("");
+        }
+
+        // the search input that responds to keyboard events and displays the search value
+        function $input() {
+            return $(inputTemplate())
+                // select all text on a focus
+                .focus(function(event) {
+                    $(this).select();
+                })
+                // attach behaviors to esc, return if desired, search on some min len string
+                .keyup(function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    // esc key will clear if desired
+                    if (event.which === KEYCODE_ESC && options.escWillClear) {
+                        clearSearchInput.call(this, event);
+                    } else {
+                        var searchTerms = $(this).val();
+                        // return key or the search string len > minSearchLen (if not 0) triggers search
+                        if (event.which === KEYCODE_RETURN || options.minSearchLen && searchTerms.length >= options.minSearchLen) {
+                            search.call(this, event, searchTerms);
+                        }
+                    }
+                }).val(options.initialVal);
+        }
+
+        // .................................................................... clear button rendering and events
+        // a button for clearing the search bar, placed on the right hand side
+        function $clearBtn() {
+            return $(['<span class="search-clear fa fa-times-circle" ', 'title="', _l("clear search (esc)"), '"></span>'].join("")).tooltip({
+                placement: "bottom"
+            }).click(function(event) {
+                clearSearchInput.call(this, event);
+            });
+        }
+
+        // .................................................................... loadingIndicator rendering
+        // a button for clearing the search bar, placed on the right hand side
+        function $loadingIndicator() {
+            return $(['<span class="search-loading fa fa-spinner fa-spin" ', 'title="', _l("loading..."), '"></span>'].join("")).hide().tooltip({
+                placement: "bottom"
+            });
+        }
+
+        // .................................................................... commands
+        // visually swap the load, clear buttons
+        function toggleLoadingIndicator() {
+            $parentNode.find(".search-loading").toggle();
+            $parentNode.find(".search-clear").toggle();
+        }
+
+        // .................................................................... init
+        // string command (not constructor)
+        if (_jquery2.default.type(options) === "string") {
+            if (options === "toggle-loading") {
+                toggleLoadingIndicator();
+            }
+            return $parentNode;
+        }
+
+        // initial render
+        if (_jquery2.default.type(options) === "object") {
+            options = _jquery2.default.extend(true, {}, defaults, options);
+        }
+        //NOTE: prepended
+        return $parentNode.addClass("search-input").prepend([$input(), $clearBtn(), $loadingIndicator()]);
+    }
+
+    // as jq plugin
+    _jquery2.default.fn.extend({
+        searchInput: function $searchInput(options) {
+            return this.each(function() {
+                return searchInput(this, options);
+            });
+        }
+    });
+});
 //# sourceMappingURL=../../maps/ui/search-input.js.map

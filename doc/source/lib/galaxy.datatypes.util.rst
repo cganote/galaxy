@@ -1,27 +1,28 @@
-util Package
-============
-
-:mod:`util` Package
--------------------
+galaxy\.datatypes\.util package
+===============================
 
 .. automodule:: galaxy.datatypes.util
     :members:
     :undoc-members:
     :show-inheritance:
 
-:mod:`gff_util` Module
-----------------------
+Submodules
+----------
+
+galaxy\.datatypes\.util\.generic\_util module
+---------------------------------------------
+
+.. automodule:: galaxy.datatypes.util.generic_util
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+galaxy\.datatypes\.util\.gff\_util module
+-----------------------------------------
 
 .. automodule:: galaxy.datatypes.util.gff_util
     :members:
     :undoc-members:
     :show-inheritance:
 
-:mod:`image_util` Module
-------------------------
-
-.. automodule:: galaxy.datatypes.util.image_util
-    :members:
-    :undoc-members:
-    :show-inheritance:
 

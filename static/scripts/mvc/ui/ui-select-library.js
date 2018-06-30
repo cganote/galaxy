@@ -1,2 +1,146 @@
-define(["utils/utils","mvc/ui/ui-misc","mvc/ui/ui-tabs","mvc/tools/tools-template"],function(a,b){var c=Backbone.Collection.extend({url:galaxy_config.root+"api/libraries"}),d=Backbone.Collection.extend({initialize:function(){var a=this;this.config=new Backbone.Model({library_id:null}),this.config.on("change",function(){a.fetch({reset:!0})})},url:function(){return galaxy_config.root+"api/libraries/"+this.config.get("library_id")+"/contents"}}),e=Backbone.View.extend({initialize:function(a){var e=this;this.libraries=new c,this.datasets=new d,this.options=a,this.library_select=new b.Select.View({optional:a.optional,onchange:function(a){e.datasets.config.set("library_id",a)}}),this.dataset_select=new b.Select.View({optional:a.optional,multiple:a.multiple,onchange:function(){e.trigger("change")}}),this.libraries.on("reset",function(){var a=[];e.libraries.each(function(b){a.push({value:b.id,label:b.get("name")})}),e.library_select.update(a),e.trigger("change")}),this.datasets.on("reset",function(){var a=[],b=e.library_select.text();null!==b&&e.datasets.each(function(c){"file"===c.get("type")&&a.push({value:c.id,label:b+c.get("name")})}),e.dataset_select.update(a),e.trigger("change")}),this.on("change",function(){a.onchange&&a.onchange(e.value())}),this.setElement(this._template()),this.$(".library-select").append(this.library_select.$el),this.$(".dataset-select").append(this.dataset_select.$el),this.libraries.fetch({reset:!0,success:function(){e.library_select.trigger("change"),void 0!==e.options.value&&e.value(e.options.value)}})},value:function(){return this.dataset_select.value()},_template:function(){return'<div class="ui-select-library"><div class="library ui-margin-bottom"><span class="library-title">Select Library</span><span class="library-select"/></div><div class="dataset"><span class="dataset-title">Select Dataset</span><span class="dataset-select"/></div></div>'}});return{View:e}});
+define("mvc/ui/ui-select-library", ["exports", "mvc/ui/ui-misc", "mvc/ui/ui-list"], function(exports, _uiMisc, _uiList) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var _uiMisc2 = _interopRequireDefault(_uiMisc);
+
+    var _uiList2 = _interopRequireDefault(_uiList);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    // collection of libraries
+    // dependencies
+    var Libraries = Backbone.Collection.extend({
+        url: Galaxy.root + "api/libraries?deleted=false"
+    });
+
+    // collection of dataset
+    var LibraryDatasets = Backbone.Collection.extend({
+        initialize: function initialize() {
+            var self = this;
+            this.config = new Backbone.Model({
+                library_id: null
+            });
+            this.config.on("change", function() {
+                self.fetch({
+                    reset: true
+                });
+            });
+        },
+        url: function url() {
+            return Galaxy.root + "api/libraries/" + this.config.get("library_id") + "/contents";
+        }
+    });
+
+    // hda/hdca content selector ui element
+    var View = Backbone.View.extend({
+        // initialize
+        initialize: function initialize(options) {
+            // link this
+            var self = this;
+
+            // collections
+            this.libraries = new Libraries();
+            this.datasets = new LibraryDatasets();
+
+            // link app and options
+            this.options = options;
+
+            // select field for the library
+            // TODO: Remove this once the library API supports searching for library datasets
+            this.library_select = new _uiMisc2.default.Select.View({
+                onchange: function onchange(value) {
+                    self.datasets.config.set("library_id", value);
+                }
+            });
+
+            // create ui-list view to keep track of selected data libraries
+            this.dataset_list = new _uiList2.default.View({
+                name: "dataset",
+                optional: options.optional,
+                multiple: options.multiple,
+                onchange: function onchange() {
+                    self.trigger("change");
+                }
+            });
+
+            // add reset handler for fetched libraries
+            this.libraries.on("reset", function() {
+                var data = [];
+                self.libraries.each(function(model) {
+                    data.push({
+                        value: model.id,
+                        label: model.get("name")
+                    });
+                });
+                self.library_select.update({
+                    data: data
+                });
+            });
+
+            // add reset handler for fetched library datasets
+            this.datasets.on("reset", function() {
+                var data = [];
+                var library_current = self.library_select.text();
+                if (library_current !== null) {
+                    self.datasets.each(function(model) {
+                        if (model.get("type") === "file") {
+                            data.push({
+                                value: model.id,
+                                label: model.get("name")
+                            });
+                        }
+                    });
+                }
+                self.dataset_list.update({
+                    data: data
+                });
+            });
+
+            // add change event. fires on trigger
+            this.on("change", function() {
+                if (options.onchange) {
+                    options.onchange(self.value());
+                }
+            });
+
+            // create elements
+            this.setElement(this._template());
+            this.$(".library-select").append(this.library_select.$el);
+            this.$el.append(this.dataset_list.$el);
+
+            // initial fetch of libraries
+            this.libraries.fetch({
+                reset: true,
+                success: function success() {
+                    self.library_select.trigger("change");
+                    if (self.options.value !== undefined) {
+                        self.value(self.options.value);
+                    }
+                }
+            });
+        },
+
+        /** Return/Set currently selected library datasets */
+        value: function value(val) {
+            return this.dataset_list.value(val);
+        },
+
+        /** Template */
+        _template: function _template() {
+            return '<div class="ui-select-library">' + '<div class="library ui-margin-bottom">' + '<span class="library-title">Select Library</span>' + '<span class="library-select"/>' + "</div>" + "</div>";
+        }
+    });
+
+    exports.default = {
+        View: View
+    };
+});
 //# sourceMappingURL=../../../maps/mvc/ui/ui-select-library.js.map

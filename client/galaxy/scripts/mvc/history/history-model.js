@@ -1,422 +1,543 @@
-define([
-    "mvc/history/history-contents",
-    "mvc/base-mvc",
-    "utils/localization"
-], function( HISTORY_CONTENTS, BASE_MVC, _l ){
+import HISTORY_CONTENTS from "mvc/history/history-contents";
+import CONTROLLED_FETCH_COLLECTION from "mvc/base/controlled-fetch-collection";
+import UTILS from "utils/utils";
+import BASE_MVC from "mvc/base-mvc";
+import _l from "utils/localization";
+import * as _ from "libs/underscore";
+import * as Backbone from "libs/backbone";
+
+/* global jQuery */
+/* global Galaxy */
+
 //==============================================================================
 /** @class Model for a Galaxy history resource - both a record of user
  *      tool use and a collection of the datasets those tools produced.
  *  @name History
- *
  *  @augments Backbone.Model
- *  @borrows LoggableMixin#logger as #logger
- *  @borrows LoggableMixin#log as #log
- *  @constructs
  */
-var History = Backbone.Model.extend( BASE_MVC.LoggableMixin ).extend(
-        BASE_MVC.mixin( BASE_MVC.SearchableModelMixin, /** @lends History.prototype */{
+var History = Backbone.Model.extend(BASE_MVC.LoggableMixin).extend(
+    BASE_MVC.mixin(
+        BASE_MVC.SearchableModelMixin,
+        /** @lends History.prototype */ {
+            _logNamespace: "history",
 
-    /** logger used to record this.log messages, commonly set to console */
-    //logger              : console,
+            /** ms between fetches when checking running jobs/datasets for updates */
+            UPDATE_DELAY: 4000,
 
-    // values from api (may need more)
-    defaults : {
-        model_class     : 'History',
-        id              : null,
-        name            : 'Unnamed History',
-        state           : 'new',
+            // values from api (may need more)
+            defaults: {
+                model_class: "History",
+                id: null,
+                name: "Unnamed History",
+                state: "new",
 
-        diskSize        : 0,
-        deleted         : false
-    },
+                deleted: false,
+                contents_active: {},
+                contents_states: {}
+            },
 
-    // ........................................................................ urls
-    urlRoot: galaxy_config.root + 'api/histories',
+            contentsClass: HISTORY_CONTENTS.HistoryContents,
 
-    // ........................................................................ set up/tear down
-    /** Set up the model
-     *  @param {Object} historyJSON model data for this History
-     *  @param {Object[]} contentsJSON   array of model data for this History's contents (hdas or collections)
-     *  @param {Object} options     any extra settings including logger
-     */
-    initialize : function( historyJSON, contentsJSON, options ){
+            /** What model fields to search with */
+            searchAttributes: ["name", "annotation", "tags"],
+
+            /** Adding title and singular tag */
+            searchAliases: {
+                title: "name",
+                tag: "tags"
+            },
+
+            // ........................................................................ set up/tear down
+            /** Set up the model
+             *  @param {Object} historyJSON model data for this History
+             *  @param {Object} options     any extra settings including logger
+             */
+            initialize: function(historyJSON, options) {
+                options = options || {};
+                this.logger = options.logger || null;
+                this.log(`${this}.initialize:`, historyJSON, options);
+
+                this.urlRoot = `${Galaxy.root}api/histories`;
+                /** HistoryContents collection of the HDAs contained in this history. */
+                this.contents = new this.contentsClass([], {
+                    history: this,
+                    historyId: this.get("id"),
+                    order: options.order
+                });
+
+                this._setUpListeners();
+                this._setUpCollectionListeners();
+
+                /** cached timeout id for the dataset updater */
+                this.updateTimeoutId = null;
+            },
+
+            /** set up any event listeners for this history including those to the contained HDAs
+             *  events: error:contents  if an error occurred with the contents collection
+             */
+            _setUpListeners: function() {
+                // if the model's id changes ('current' or null -> an actual id), update the contents history_id
+                return this.on({
+                    error: function(model, xhr, options, msg, details) {
+                        this.clearUpdateTimeout();
+                    },
+                    "change:id": function(model, newId) {
+                        if (this.contents) {
+                            this.contents.historyId = newId;
+                        }
+                    }
+                });
+            },
+
+            /** event handlers for the contents submodels */
+            _setUpCollectionListeners: function() {
+                if (!this.contents) {
+                    return this;
+                }
+                // bubble up errors
+                return this.listenTo(this.contents, {
+                    error: function() {
+                        this.trigger.apply(this, jQuery.makeArray(arguments));
+                    }
+                });
+            },
+
+            // ........................................................................ derived attributes
+            /**  */
+            contentsShown: function() {
+                var contentsActive = this.get("contents_active");
+                var shown = contentsActive.active || 0;
+                shown += this.contents.includeDeleted ? contentsActive.deleted : 0;
+                shown += this.contents.includeHidden ? contentsActive.hidden : 0;
+                return shown;
+            },
+
+            /** convert size in bytes to a more human readable version */
+            nice_size: function() {
+                var size = this.get("size");
+                return size ? UTILS.bytesToString(size, true, 2) : _l("(empty)");
+            },
+
+            /** override to add nice_size */
+            toJSON: function() {
+                return _.extend(Backbone.Model.prototype.toJSON.call(this), {
+                    nice_size: this.nice_size()
+                });
+            },
+
+            /** override to allow getting nice_size */
+            get: function(key) {
+                if (key === "nice_size") {
+                    return this.nice_size();
+                }
+                return Backbone.Model.prototype.get.apply(this, arguments);
+            },
+
+            // ........................................................................ common queries
+            /** T/F is this history owned by the current user (Galaxy.user)
+             *      Note: that this will return false for an anon user even if the history is theirs.
+             */
+            ownedByCurrUser: function() {
+                // no currUser
+                if (!Galaxy || !Galaxy.user) {
+                    return false;
+                }
+                // user is anon or history isn't owned
+                if (Galaxy.user.isAnonymous() || Galaxy.user.id !== this.get("user_id")) {
+                    return false;
+                }
+                return true;
+            },
+
+            /** Return the number of running jobs assoc with this history (note: unknown === 0) */
+            numOfUnfinishedJobs: function() {
+                var unfinishedJobIds = this.get("non_ready_jobs");
+                return unfinishedJobIds ? unfinishedJobIds.length : 0;
+            },
+
+            /** Return the number of running hda/hdcas in this history (note: unknown === 0) */
+            numOfUnfinishedShownContents: function() {
+                return this.contents.runningAndActive().length || 0;
+            },
+
+            // ........................................................................ updates
+            _fetchContentRelatedAttributes: function() {
+                var contentRelatedAttrs = ["size", "non_ready_jobs", "contents_active", "hid_counter"];
+                return this.fetch({
+                    data: jQuery.param({
+                        keys: contentRelatedAttrs.join(",")
+                    })
+                });
+            },
+
+            /** check for any changes since the last time we updated (or fetch all if ) */
+            refresh: function(options) {
+                // console.log( this + '.refresh' );
+                options = options || {};
+
+                // note if there was no previous update time, all summary contents will be fetched
+                var lastUpdateTime = this.lastUpdateTime;
+                // if we don't flip this, then a fully-fetched list will not be re-checked via fetch
+                this.contents.allFetched = false;
+                var fetchFn =
+                    this.contents.currentPage !== 0
+                        ? () => this.contents.fetchPage(this.contents.currentPage)
+                        : () => this.contents.fetchUpdated(lastUpdateTime);
+                // note: if there was no previous update time, all summary contents will be fetched
+                return fetchFn().done((response, status, xhr) => {
+                    var serverResponseDatetime;
+                    try {
+                        serverResponseDatetime = new Date(xhr.getResponseHeader("Date"));
+                    } catch (err) {
+                        console.error(err);
+                    }
+                    this.lastUpdateTime = serverResponseDatetime || new Date();
+                    this.checkForUpdates(options);
+                });
+            },
+
+            /** continuously fetch updated contents every UPDATE_DELAY ms if this history's datasets or jobs are unfinished */
+            checkForUpdates: function(options) {
+                // console.log( this + '.checkForUpdates' );
+                options = options || {};
+                var delay = this.UPDATE_DELAY;
+                if (!this.id) {
+                    return;
+                }
+
+                var _delayThenUpdate = () => {
+                    // prevent buildup of updater timeouts by clearing previous if any, then set new and cache id
+                    this.clearUpdateTimeout();
+                    this.updateTimeoutId = setTimeout(() => {
+                        this.refresh(options);
+                    }, delay);
+                };
+
+                // if there are still datasets in the non-ready state, recurse into this function with the new time
+                var nonReadyContentCount = this.numOfUnfinishedShownContents();
+                // console.log( 'nonReadyContentCount:', nonReadyContentCount );
+                if (nonReadyContentCount > 0) {
+                    _delayThenUpdate();
+                } else {
+                    // no datasets are running, but currently runnning jobs may still produce new datasets
+                    // see if the history has any running jobs and continue to update if so
+                    // (also update the size for the user in either case)
+                    this._fetchContentRelatedAttributes().done(historyData => {
+                        // console.log( 'non_ready_jobs:', historyData.non_ready_jobs );
+                        if (this.numOfUnfinishedJobs() > 0) {
+                            _delayThenUpdate();
+                        } else {
+                            // otherwise, let listeners know that all updates have stopped
+                            this.trigger("ready");
+                        }
+                    });
+                }
+            },
+
+            /** clear the timeout and the cached timeout id */
+            clearUpdateTimeout: function() {
+                if (this.updateTimeoutId) {
+                    clearTimeout(this.updateTimeoutId);
+                    this.updateTimeoutId = null;
+                }
+            },
+
+            stopPolling: function() {
+                this.clearUpdateTimeout();
+                if (this.contents) {
+                    this.contents.stopPolling();
+                }
+            },
+
+            // ........................................................................ ajax
+            /** override to use actual Dates objects for create/update times */
+            parse: function(response, options) {
+                var parsed = Backbone.Model.prototype.parse.call(this, response, options);
+                if (parsed.create_time) {
+                    parsed.create_time = new Date(parsed.create_time);
+                }
+                if (parsed.update_time) {
+                    parsed.update_time = new Date(parsed.update_time);
+                }
+                return parsed;
+            },
+
+            /** fetch this histories data (using options) then it's contents (using contentsOptions) */
+            fetchWithContents: function(options, contentsOptions) {
+                options = options || {};
+                var self = this;
+
+                // console.log( this + '.fetchWithContents' );
+                // TODO: push down to a base class
+                options.view = "dev-detailed";
+
+                // fetch history then use history data to fetch (paginated) contents
+                return this.fetch(options).then(function getContents(history) {
+                    self.contents.history = self;
+                    self.contents.setHistoryId(history.id);
+                    return self.fetchContents(contentsOptions);
+                });
+            },
+
+            /** fetch this histories contents, adjusting options based on the stored history preferences */
+            fetchContents: function(options) {
+                options = options || {};
+
+                // we're updating, reset the update time
+                this.lastUpdateTime = new Date();
+                return this.contents.fetchCurrentPage(options);
+            },
+
+            /** save this history, _Mark_ing it as deleted (just a flag) */
+            _delete: function(options) {
+                if (this.get("deleted")) {
+                    return jQuery.when();
+                }
+                return this.save({ deleted: true }, options);
+            },
+            /** purge this history, _Mark_ing it as purged and removing all dataset data from the server */
+            purge: function(options) {
+                if (this.get("purged")) {
+                    return jQuery.when();
+                }
+                return this.save({ deleted: true, purged: true }, options);
+            },
+            /** save this history, _Mark_ing it as undeleted */
+            undelete: function(options) {
+                if (!this.get("deleted")) {
+                    return jQuery.when();
+                }
+                return this.save({ deleted: false }, options);
+            },
+
+            /** Make a copy of this history on the server
+             *  @param {Boolean} current    if true, set the copy as the new current history (default: true)
+             *  @param {String} name        name of new history (default: none - server sets to: Copy of <current name>)
+             *  @fires copied               passed this history and the response JSON from the copy
+             *  @returns {xhr}
+             */
+            copy: function(current, name, allDatasets) {
+                current = current !== undefined ? current : true;
+                if (!this.id) {
+                    throw new Error("You must set the history ID before copying it.");
+                }
+
+                var postData = { history_id: this.id };
+                if (current) {
+                    postData.current = true;
+                }
+                if (name) {
+                    postData.name = name;
+                }
+                if (!allDatasets) {
+                    postData.all_datasets = false;
+                }
+                postData.view = "dev-detailed";
+
+                var history = this;
+                var copy = jQuery.post(this.urlRoot, postData);
+                // if current - queue to setAsCurrent before firing 'copied'
+                if (current) {
+                    return copy.then(response => {
+                        var newHistory = new History(response);
+                        return newHistory.setAsCurrent().done(() => {
+                            history.trigger("copied", history, response);
+                        });
+                    });
+                }
+                return copy.done(response => {
+                    history.trigger("copied", history, response);
+                });
+            },
+
+            setAsCurrent: function() {
+                var history = this;
+
+                var xhr = jQuery.getJSON(`${Galaxy.root}history/set_as_current?id=${this.id}`);
+
+                xhr.done(() => {
+                    history.trigger("set-as-current", history);
+                });
+                return xhr;
+            },
+
+            // ........................................................................ misc
+            toString: function() {
+                return `History(${this.get("id")},${this.get("name")})`;
+            }
+        }
+    )
+);
+
+//==============================================================================
+var _collectionSuper = CONTROLLED_FETCH_COLLECTION.InfinitelyScrollingCollection;
+/** @class A collection of histories (per user)
+ *      that maintains the current history as the first in the collection.
+ *  New or copied histories become the current history.
+ */
+var HistoryCollection = _collectionSuper.extend(BASE_MVC.LoggableMixin).extend({
+    _logNamespace: "history",
+
+    model: History,
+    /** @type {String} initial order used by collection */
+    order: "update_time",
+    /** @type {Number} limit used for the first fetch (or a reset) */
+    limitOnFirstFetch: 10,
+    /** @type {Number} limit used for each subsequent fetch */
+    limitPerFetch: 10,
+
+    initialize: function(models, options) {
         options = options || {};
-        this.logger = options.logger || null;
-        this.log( this + ".initialize:", historyJSON, contentsJSON, options );
+        this.log("HistoryCollection.initialize", models, options);
+        this.urlRoot = `${Galaxy.root}api/histories`;
+        _collectionSuper.prototype.initialize.call(this, models, options);
 
-        /** HistoryContents collection of the HDAs contained in this history. */
-        this.log( 'creating history contents:', contentsJSON );
-        this.contents = new HISTORY_CONTENTS.HistoryContents( contentsJSON || [], { historyId: this.get( 'id' )});
-        //// if we've got hdas passed in the constructor, load them
-        //if( contentsJSON && _.isArray( contentsJSON ) ){
-        //    this.log( 'resetting history contents:', contentsJSON );
-        //    this.contents.reset( contentsJSON );
-        //}
+        /** @type {boolean} should deleted histories be included */
+        this.includeDeleted = options.includeDeleted || false;
 
-        this._setUpListeners();
+        /** @type {String} encoded id of the history that's current */
+        this.currentHistoryId = options.currentHistoryId;
 
-        /** cached timeout id for the dataset updater */
-        this.updateTimeoutId = null;
-        // set up update timeout if needed
-        //this.checkForUpdates();
+        this.setUpListeners();
+        // note: models are sent to reset *after* this fn ends; up to this point
+        // the collection *is empty*
     },
 
-    /** set up any event listeners for this history including those to the contained HDAs
-     *  events: error:contents  if an error occurred with the contents collection
-     */
-    _setUpListeners : function(){
-        this.on( 'error', function( model, xhr, options, msg, details ){
-            this.errorHandler( model, xhr, options, msg, details );
-        });
+    url: function() {
+        return this.urlRoot;
+    },
 
-        // hda collection listening
-        if( this.contents ){
-            this.listenTo( this.contents, 'error', function(){
-                this.trigger.apply( this, [ 'error:contents' ].concat( jQuery.makeArray( arguments ) ) );
+    /** set up reflexive event handlers */
+    setUpListeners: function setUpListeners() {
+        return this.on({
+            // when a history is deleted, remove it from the collection (if optionally set to do so)
+            "change:deleted": function(history) {
+                // TODO: this becomes complicated when more filters are used
+                this.debug("change:deleted", this.includeDeleted, history.get("deleted"));
+                if (!this.includeDeleted && history.get("deleted")) {
+                    this.remove(history);
+                }
+            },
+            // listen for a history copy, setting it to current
+            copied: function(original, newData) {
+                this.setCurrent(new History(newData, []));
+            },
+            // when a history is made current, track the id in the collection
+            "set-as-current": function(history) {
+                var oldCurrentId = this.currentHistoryId;
+                this.trigger("no-longer-current", oldCurrentId);
+                this.currentHistoryId = history.id;
+            }
+        });
+    },
+
+    /** override to change view */
+    _buildFetchData: function(options) {
+        return _.extend(_collectionSuper.prototype._buildFetchData.call(this, options), {
+            view: "dev-detailed"
+        });
+    },
+
+    /** override to filter out deleted and purged */
+    _buildFetchFilters: function(options) {
+        var superFilters = _collectionSuper.prototype._buildFetchFilters.call(this, options) || {};
+        var filters = {};
+        if (this.includeDeleted !== true) {
+            filters.deleted = false;
+            filters.purged = false;
+        } else {
+            // force API to return both deleted and non
+            //TODO: when the API is updated, remove this
+            filters.deleted = null;
+        }
+        return _.defaults(superFilters, filters);
+    },
+
+    /** override to fetch current as well (as it may be outside the first 10, etc.) */
+    fetchFirst: function(options) {
+        // TODO: batch?
+        var xhr = jQuery.when();
+        if (this.currentHistoryId) {
+            xhr = _collectionSuper.prototype.fetchFirst.call(this, {
+                silent: true,
+                limit: 1,
+                filters: {
+                    "encoded_id-in": this.currentHistoryId,
+                    // without these a deleted current history will return [] here and block the other xhr
+                    deleted: null,
+                    purged: ""
+                }
             });
         }
-        // if the model's id changes ('current' or null -> an actual id), update the contents history_id
-        this.on( 'change:id', function( model, newId ){
-            if( this.contents ){
-                this.contents.historyId = newId;
-            }
-        }, this );
+        return xhr.then(() => {
+            options = options || {};
+            options.offset = 0;
+            return this.fetchMore(options);
+        });
     },
 
-    //TODO: see base-mvc
-    //onFree : function(){
-    //    if( this.contents ){
-    //        this.contents.free();
-    //    }
-    //},
+    /** @type {Object} map of collection available sorting orders containing comparator fns */
+    comparators: _.extend(_.clone(_collectionSuper.prototype.comparators), {
+        name: BASE_MVC.buildComparator("name", {
+            ascending: true
+        }),
+        "name-dsc": BASE_MVC.buildComparator("name", {
+            ascending: false
+        }),
+        size: BASE_MVC.buildComparator("size", {
+            ascending: false
+        }),
+        "size-asc": BASE_MVC.buildComparator("size", {
+            ascending: true
+        })
+    }),
 
-    /** event listener for errors. Generally errors are handled outside this model */
-    errorHandler : function( model, xhr, options, msg, details ){
-        // clear update timeout on model err
-        this.clearUpdateTimeout();
-    },
-
-    // ........................................................................ common queries
-    /** T/F is this history owned by the current user (Galaxy.currUser)
-     *      Note: that this will return false for an anon user even if the history is theirs.
-     */
-    ownedByCurrUser : function(){
-        // no currUser
-        if( !Galaxy || !Galaxy.currUser ){
-            return false;
-        }
-        // user is anon or history isn't owned
-        if( Galaxy.currUser.isAnonymous() || Galaxy.currUser.id !== this.get( 'user_id' ) ){
-            return false;
-        }
-        return true;
-    },
-
-    /**  */
-    contentsCount : function(){
-        return _.reduce( _.values( this.get( 'state_details' ) ), function( memo, num ){ return memo + num; }, 0 );
-    },
-
-    // ........................................................................ search
-    /** What model fields to search with */
-    searchAttributes : [
-        'name', 'annotation', 'tags'
-    ],
-
-    /** Adding title and singular tag */
-    searchAliases : {
-        title       : 'name',
-        tag         : 'tags'
-    },
-
-    // ........................................................................ updates
-    /** does the contents collection indicate they're still running and need to be updated later?
-     *      delay + update if needed
-     *  @param {Function} onReadyCallback   function to run when all contents are in the ready state
-     *  events: ready
-     */
-    checkForUpdates : function( onReadyCallback ){
-        //this.info( 'checkForUpdates' )
-
-        // get overall History state from collection, run updater if History has running/queued contents
-        //  boiling it down on the client to running/not
-        if( this.contents.running().length ){
-            this.setUpdateTimeout();
-
-        } else {
-            this.trigger( 'ready' );
-            if( _.isFunction( onReadyCallback ) ){
-                onReadyCallback.call( this );
-            }
+    /** override to always have the current history first */
+    sort: function(options) {
+        options = options || {};
+        var silent = options.silent;
+        var currentHistory = this.remove(this.get(this.currentHistoryId));
+        _collectionSuper.prototype.sort.call(this, _.defaults({ silent: true }, options));
+        this.unshift(currentHistory, { silent: true });
+        if (!silent) {
+            this.trigger("sort", this, options);
         }
         return this;
     },
 
-    /** create a timeout (after UPDATE_DELAY or delay ms) to refetch the contents. Clear any prev. timeout */
-    setUpdateTimeout : function( delay ){
-        delay = delay || History.UPDATE_DELAY;
-        var history = this;
-
-        // prevent buildup of updater timeouts by clearing previous if any, then set new and cache id
-        this.clearUpdateTimeout();
-        this.updateTimeoutId = setTimeout( function(){
-            history.refresh();
-        }, delay );
-        return this.updateTimeoutId;
-    },
-
-    /** clear the timeout and the cached timeout id */
-    clearUpdateTimeout : function(){
-        if( this.updateTimeoutId ){
-            clearTimeout( this.updateTimeoutId );
-            this.updateTimeoutId = null;
-        }
-    },
-
-    /* update the contents, getting full detailed model data for any whose id is in detailIds
-     *  set up to run this again in some interval of time
-     *  @param {String[]} detailIds list of content ids to get detailed model data for
-     *  @param {Object} options     std. backbone fetch options map
-     */
-    refresh : function( detailIds, options ){
-        //this.info( 'refresh:', detailIds, this.contents );
-        detailIds = detailIds || [];
-        options = options || {};
-        var history = this;
-
-        // add detailIds to options as CSV string
-        options.data = options.data || {};
-        if( detailIds.length ){
-            options.data.details = detailIds.join( ',' );
-        }
-        var xhr = this.contents.fetch( options );
-        xhr.done( function( models ){
-            history.checkForUpdates( function(){
-                // fetch the history inside onReadyCallback in order to recalc history size
-                this.fetch();
-            });
-        });
-        return xhr;
-    },
-
-    // ........................................................................ ajax
-    /** save this history, _Mark_ing it as deleted (just a flag) */
-    _delete : function( options ){
-        if( this.get( 'deleted' ) ){ return jQuery.when(); }
-        return this.save( { deleted: true }, options );
-    },
-    /** purge this history, _Mark_ing it as purged and removing all dataset data from the server */
-    purge : function( options ){
-        if( this.get( 'purged' ) ){ return jQuery.when(); }
-        return this.save( { deleted: true, purged: true }, options );
-    },
-    /** save this history, _Mark_ing it as undeleted */
-    undelete : function( options ){
-        if( !this.get( 'deleted' ) ){ return jQuery.when(); }
-        return this.save( { deleted: false }, options );
-    },
-
-    /** Make a copy of this history on the server
-     *  @param {Boolean} current    if true, set the copy as the new current history (default: true)
-     *  @param {String} name        name of new history (default: none - server sets to: Copy of <current name>)
-     *  @fires copied               passed this history and the response JSON from the copy
-     *  @returns {xhr}
-     */
-    copy : function( current, name ){
-        current = ( current !== undefined )?( current ):( true );
-        if( !this.id ){
-            throw new Error( 'You must set the history ID before copying it.' );
-        }
-
-        var postData = { history_id  : this.id };
-        if( current ){
-            postData.current = true;
-        }
-        if( name ){
-            postData.name = name;
-        }
-
-        //TODO:?? all datasets?
-
-        var history = this,
-            copy = jQuery.post( this.urlRoot, postData );
-        // if current - queue to setAsCurrent before firing 'copied'
-        if( current ){
-            return copy.then( function( response ){
-                var newHistory = new History( response );
-                return newHistory.setAsCurrent()
-                    .done( function(){
-                        history.trigger( 'copied', history, response );
-                    });
-            });
-        }
-        return copy.done( function( response ){
-            history.trigger( 'copied', history, response );
-        });
-    },
-
-    setAsCurrent : function(){
-        var history = this,
-            xhr = jQuery.getJSON( galaxy_config.root + 'history/set_as_current?id=' + this.id );
-
-        xhr.done( function(){
-            history.trigger( 'set-as-current', history );
-        });
-        return xhr;
-    },
-
-    // ........................................................................ misc
-    toString : function(){
-        return 'History(' + this.get( 'id' ) + ',' + this.get( 'name' ) + ')';
-    }
-}));
-
-//------------------------------------------------------------------------------ CLASS VARS
-/** When the history has running hdas,
- *  this is the amount of time between update checks from the server
- */
-History.UPDATE_DELAY = 4000;
-
-/** Get data for a history then its hdas using a sequential ajax call, return a deferred to receive both */
-History.getHistoryData = function getHistoryData( historyId, options ){
-    options = options || {};
-    var detailIdsFn = options.detailIdsFn || [];
-    var hdcaDetailIds = options.hdcaDetailIds || [];
-    //console.debug( 'getHistoryData:', historyId, options );
-
-    var df = jQuery.Deferred(),
-        historyJSON = null;
-
-    function getHistory( id ){
-        // get the history data
-        if( historyId === 'current' ){
-            return jQuery.getJSON( galaxy_config.root + 'history/current_history_json' );
-        }
-        return jQuery.ajax( galaxy_config.root + 'api/histories/' + historyId );
-    }
-    function isEmpty( historyData ){
-        // get the number of hdas accrd. to the history
-        return historyData && historyData.empty;
-    }
-    function getContents( historyData ){
-        // get the hda data
-        // if no hdas accrd. to history: return empty immed.
-        if( isEmpty( historyData ) ){ return []; }
-        // if there are hdas accrd. to history: get those as well
-        if( _.isFunction( detailIdsFn ) ){
-            detailIdsFn = detailIdsFn( historyData );
-        }
-        if( _.isFunction( hdcaDetailIds ) ){
-            hdcaDetailIds = hdcaDetailIds( historyData );
-        }
-        var data = {};
-        if( detailIdsFn.length ) {
-            data.dataset_details = detailIdsFn.join( ',' );
-        }
-        if( hdcaDetailIds.length ) {
-            // for symmetry, not actually used by backend of consumed
-            // by frontend.
-            data.dataset_collection_details = hdcaDetailIds.join( ',' );
-        }
-        return jQuery.ajax( galaxy_config.root + 'api/histories/' + historyData.id + '/contents', { data: data });
-    }
-
-    // getting these concurrently is 400% slower (sqlite, local, vanilla) - so:
-    //  chain the api calls - getting history first then contents
-
-    var historyFn = options.historyFn || getHistory,
-        contentsFn = options.contentsFn || getContents;
-
-    // chain ajax calls: get history first, then hdas
-    var historyXHR = historyFn( historyId );
-    historyXHR.done( function( json ){
-        // set outer scope var here for use below
-        historyJSON = json;
-        df.notify({ status: 'history data retrieved', historyJSON: historyJSON });
-    });
-    historyXHR.fail( function( xhr, status, message ){
-        // call reject on the outer deferred to allow its fail callback to run
-        df.reject( xhr, 'loading the history' );
-    });
-
-    var contentsXHR = historyXHR.then( contentsFn );
-    contentsXHR.then( function( contentsJSON ){
-        df.notify({ status: 'contents data retrieved', historyJSON: historyJSON, contentsJSON: contentsJSON });
-        // we've got both: resolve the outer scope deferred
-        df.resolve( historyJSON, contentsJSON );
-    });
-    contentsXHR.fail( function( xhr, status, message ){
-        // call reject on the outer deferred to allow its fail callback to run
-        df.reject( xhr, 'loading the contents', { history: historyJSON } );
-    });
-
-    return df;
-};
-
-
-//==============================================================================
-/** @class A collection of histories (per user).
- *      (stub) currently unused.
- */
-var HistoryCollection = Backbone.Collection.extend( BASE_MVC.LoggableMixin ).extend(
-/** @lends HistoryCollection.prototype */{
-    model   : History,
-
-    /** logger used to record this.log messages, commonly set to console */
-    //logger              : console,
-
-    urlRoot : ( window.galaxy_config? galaxy_config.root : '/' ) + 'api/histories',
-    //url     : function(){ return this.urlRoot; },
-
-    initialize : function( models, options ){
-        options = options || {};
-        this.log( 'HistoryCollection.initialize', arguments );
-        this.includeDeleted = options.includeDeleted || false;
-
-        //this.on( 'all', function(){
-        //    console.info( 'event:', arguments );
-        //});
-
-        this.setUpListeners();
-    },
-
-    setUpListeners : function setUpListeners(){
+    /** create a new history and by default set it to be the current history */
+    create: function create(data, hdas, historyOptions, xhrOptions) {
+        //TODO: .create is actually a collection function that's overridden here
         var collection = this;
 
-        // when a history is deleted, remove it from the collection (if optionally set to do so)
-        this.on( 'change:deleted', function( history ){
-            this.debug( 'change:deleted', collection.includeDeleted, history.get( 'deleted' ) );
-            if( !collection.includeDeleted && history.get( 'deleted' ) ){
-                collection.remove( history );
-            }
-        });
-
-        // listen for a history copy, adding it to the beginning of the collection
-        this.on( 'copied', function( original, newData ){
-            this.unshift( new History( newData, [] ) );
+        var xhr = jQuery.getJSON(`${Galaxy.root}history/create_new_current`);
+        return xhr.done(newData => {
+            collection.setCurrent(new History(newData, [], historyOptions || {}));
         });
     },
 
-    create : function create( data, hdas, historyOptions, xhrOptions ){
-        var collection = this,
-            xhr = jQuery.getJSON( galaxy_config.root + 'history/create_new_current'  );
-        return xhr.done( function( newData ){
-            var history = new History( newData, [], historyOptions || {} );
-            // new histories go in the front
-//TODO:  (implicit ordering by update time...)
-            collection.unshift( history );
-            collection.trigger( 'new-current' );
-        });
-//TODO: move back to using history.save (via Deferred.then w/ set_as_current)
+    /** set the current history to the given history, placing it first in the collection.
+     *  Pass standard bbone options for use in unshift.
+     *  @triggers new-current passed history and this collection
+     */
+    setCurrent: function(history, options) {
+        options = options || {};
+        // new histories go in the front
+        this.unshift(history, options);
+        this.currentHistoryId = history.get("id");
+        if (!options.silent) {
+            this.trigger("new-current", history, this);
+        }
+        return this;
     },
 
-    toString: function toString(){
-        return 'HistoryCollection(' + this.length + ')';
+    toString: function toString() {
+        return `HistoryCollection(${this.length},current:${this.currentHistoryId})`;
     }
 });
 
 //==============================================================================
-return {
-    History           : History,
-    HistoryCollection : HistoryCollection
-};});
+export default {
+    History: History,
+    HistoryCollection: HistoryCollection
+};

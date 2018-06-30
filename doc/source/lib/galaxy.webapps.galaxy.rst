@@ -1,10 +1,7 @@
-galaxy Package
-==============
+galaxy\.webapps\.galaxy package
+===============================
 
-:mod:`buildapp` Module
-----------------------
-
-.. automodule:: galaxy.webapps.galaxy.buildapp
+.. automodule:: galaxy.webapps.galaxy
     :members:
     :undoc-members:
     :show-inheritance:
@@ -16,4 +13,24 @@ Subpackages
 
     galaxy.webapps.galaxy.api
     galaxy.webapps.galaxy.controllers
+
+Submodules
+----------
+
+galaxy\.webapps\.galaxy\.buildapp module
+----------------------------------------
+
+.. automodule:: galaxy.webapps.galaxy.buildapp
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+galaxy\.webapps\.galaxy\.config\_watchers module
+------------------------------------------------
+
+.. automodule:: galaxy.webapps.galaxy.config_watchers
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 

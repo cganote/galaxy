@@ -6,4 +6,9 @@
 #######
 
 cd `dirname $0`
+
+. ./scripts/common_startup_functions.sh
+
+setup_python
+
 python ./scripts/manage_db.py $@

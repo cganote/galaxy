@@ -1,0 +1,53 @@
+{
+  "name": "latex-to-unicode-converter",
+  "version": "0.5.2",
+  "description": "Convert LaTeX strings to Unicode",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:digitalheir/latex-to-unicode-converter.git"
+  },
+  "scripts": {
+    "test": "mocha --compilers ts:ts-node/register,tsx:ts-node/register **/*.spec.ts",
+    "build:ts": "tsc",
+    "build:min": "webpack -p"
+  },
+  "keywords": [
+    "latex",
+    "tex",
+    "unicode",
+    "html",
+    "strings",
+    "string",
+    "convert",
+    "converter",
+    "conversion",
+    "translate",
+    "translation"
+  ],
+  "author": "Maarten Trompper",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/digitalheir/latex-to-unicode-converter/issues"
+  },
+  "homepage": "https://github.com/digitalheir/latex-to-unicode-converter",
+  "dependencies": {
+    "latex-parser": "^0.6.2"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.0.5",
+    "@types/mocha": "^2.2.44",
+    "@types/react": "^16.0.25",
+    "awesome-typescript-loader": "^3.4.0",
+    "chai": "^4.1.2",
+    "mathy-unicode-characters": "^0.9.3",
+    "mocha": "^4.0.1",
+    "ts-node": "^3.3.0",
+    "tslint": "^5.8.0",
+    "tslint-loader": "^3.5.3",
+    "typescript": "^2.6.2",
+    "webpack": "^3.8.1",
+    "webpack-sources": "^1.1.0"
+  }
+}

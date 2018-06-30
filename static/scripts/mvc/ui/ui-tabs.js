@@ -1,2 +1,177 @@
-define(["utils/utils"],function(a){var b=Backbone.View.extend({optionsDefault:{title_new:"",operations:null,onnew:null,max:null,onchange:null},initialize:function(b){this.visible=!1,this.$nav=null,this.$content=null,this.first_tab=null,this.current_id=null,this.options=a.merge(b,this.optionsDefault);var c=$(this._template(this.options));this.$nav=c.find(".tab-navigation"),this.$content=c.find(".tab-content"),this.setElement(c),this.list={};var d=this;if(this.options.operations&&$.each(this.options.operations,function(a,b){b.$el.prop("id",a),d.$nav.find(".operations").append(b.$el)}),this.options.onnew){var e=$(this._template_tab_new(this.options));this.$nav.append(e),e.tooltip({title:"Add a new tab",placement:"bottom",container:d.$el}),e.on("click",function(){e.tooltip("hide"),d.options.onnew()})}},size:function(){return _.size(this.list)},current:function(){return this.$el.find(".tab-pane.active").attr("id")},add:function(a){var b=this,c=a.id,d=$(this._template_tab(a)),e=$(this._template_tab_content(a));if(this.list[c]=a.ondel?!0:!1,this.options.onnew?this.$nav.find("#new-tab").before(d):this.$nav.append(d),e.append(a.$el),this.$content.append(e),1==this.size()&&(d.addClass("active"),e.addClass("active"),this.first_tab=c),this.options.max&&this.size()>=this.options.max&&this.$el.find("#new-tab").hide(),a.ondel){var f=d.find("#delete");f.tooltip({title:"Delete this tab",placement:"bottom",container:b.$el}),f.on("click",function(){return f.tooltip("destroy"),b.$el.find(".tooltip").remove(),a.ondel(),!1})}d.on("click",function(d){d.preventDefault(),a.onclick?a.onclick():b.show(c)}),this.current_id||(this.current_id=c)},del:function(a){this.$el.find("#tab-"+a).remove(),this.$el.find("#"+a).remove(),this.first_tab==a&&(this.first_tab=null),null!=this.first_tab&&this.show(this.first_tab),this.list[a]&&delete this.list[a],this.size()<this.options.max&&this.$el.find("#new-tab").show()},delRemovable:function(){for(var a in this.list)this.del(a)},show:function(a){this.$el.fadeIn("fast"),this.visible=!0,a&&(this.$el.find("#tab-"+this.current_id).removeClass("active"),this.$el.find("#"+this.current_id).removeClass("active"),this.$el.find("#tab-"+a).addClass("active"),this.$el.find("#"+a).addClass("active"),this.current_id=a),this.options.onchange&&this.options.onchange(a)},hide:function(){this.$el.fadeOut("fast"),this.visible=!1},hideOperation:function(a){this.$nav.find("#"+a).hide()},showOperation:function(a){this.$nav.find("#"+a).show()},setOperation:function(a,b){var c=this.$nav.find("#"+a);c.off("click"),c.on("click",b)},title:function(a,b){var c=this.$el.find("#tab-title-text-"+a);return b&&c.html(b),c.html()},retitle:function(a){var b=0;for(var c in this.list)this.title(c,++b+": "+a)},_template:function(){return'<div class="ui-tabs tabbable tabs-left"><ul id="tab-navigation" class="tab-navigation nav nav-tabs"><div class="operations" style="float: right; margin-bottom: 4px;"></div></ul><div id="tab-content" class="tab-content"/></div>'},_template_tab_new:function(a){return'<li id="new-tab"><a href="javascript:void(0);"><i class="ui-tabs-add fa fa-plus-circle"/>'+a.title_new+"</a></li>"},_template_tab:function(a){var b='<li id="tab-'+a.id+'" class="tab-element"><a id="tab-title-link-'+a.id+'" title="" href="#'+a.id+'" data-original-title=""><span id="tab-title-text-'+a.id+'" class="tab-title-text">'+a.title+"</span>";return a.ondel&&(b+='<i id="delete" class="ui-tabs-delete fa fa-minus-circle"/>'),b+="</a></li>"},_template_tab_content:function(a){return'<div id="'+a.id+'" class="tab-pane"/>'}});return{View:b}});
+define("mvc/ui/ui-tabs", ["exports", "backbone"], function(exports, _backbone) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+    exports.View = undefined;
+
+    var Backbone = _interopRequireWildcard(_backbone);
+
+    function _interopRequireWildcard(obj) {
+        if (obj && obj.__esModule) {
+            return obj;
+        } else {
+            var newObj = {};
+
+            if (obj != null) {
+                for (var key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key];
+                }
+            }
+
+            newObj.default = obj;
+            return newObj;
+        }
+    }
+
+    /* global $ */
+    var View = exports.View = Backbone.View.extend({
+        initialize: function initialize(options) {
+            this.collection = new Backbone.Collection();
+            this.model = options && options.model || new Backbone.Model({
+                onchange: null,
+                visible: true
+            }).set(options);
+            this.setElement($(this._template()));
+            this.$nav = this.$(".tab-navigation");
+            this.$content = this.$(".tab-content");
+            this.$el.on("click", function() {
+                $(".tooltip").hide();
+            });
+            this.render();
+            this.listenTo(this.model, "change", this.render, this);
+            this.listenTo(this.collection, "add", this._add, this);
+            this.listenTo(this.collection, "remove", this._remove, this);
+            this.listenTo(this.collection, "change", this._change, this);
+            this.listenTo(this.collection, "reset", this._reset, this);
+            this.listenTo(this.collection, "add remove reset", this.render, this);
+        },
+
+        render: function render() {
+            var id = this.model.get("current");
+            id = this.$("#" + id).length > 0 ? id : this.first();
+            if (id) {
+                this.$nav.find(".nav-link.active").removeClass("active");
+                this.$content.children().removeClass("active");
+                this.$("#tab-" + id + " .nav-link").addClass("active");
+                this.$("#" + id).addClass("active");
+            }
+            this.$el[this.model.get("visible") ? "fadeIn" : "fadeOut"]("fast");
+            this.$nav[this.size() > 1 ? "show" : "hide"]();
+        },
+
+        /** Returns tab id for currently shown tab */
+        current: function current() {
+            return this.model.get("current");
+        },
+
+        /** Show tab view and highlight a tab by id */
+        show: function show(id) {
+            if (id) {
+                this.model.set({
+                    current: id,
+                    visible: true
+                });
+                this.model.get("onchange") && this.model.get("onchange")(id);
+            }
+        },
+
+        /** Hide tab view */
+        hide: function hide() {
+            this.model.set("visible", false);
+        },
+
+        /** Returns first tab */
+        first: function first() {
+            var model = this.collection.first();
+            return model && model.id;
+        },
+
+        /** Returns current number of tabs */
+        size: function size() {
+            return this.collection.length;
+        },
+
+        /** Adds a new tab */
+        add: function add(options) {
+            this.collection.add(options);
+        },
+
+        /** Delete tab */
+        del: function del(id) {
+            this.collection.remove(id);
+        },
+
+        /** Delete all tabs */
+        delAll: function delAll() {
+            this.collection.reset();
+        },
+
+        /** Show tab */
+        showTab: function showTab(id) {
+            this.collection.get(id).set("hidden", false);
+        },
+
+        /** Hide tab */
+        hideTab: function hideTab(id) {
+            this.collection.get(id).set("hidden", true);
+        },
+
+        /** Adds a new tab */
+        _add: function _add(tab_model) {
+            var self = this;
+            var options = tab_model.attributes;
+            this.$content.append($("<div/>").attr("id", options.id).addClass("tab-pane").append(options.$el));
+            this.$nav.append($(this._template_tab(options)).show().tooltip({
+                title: options.tooltip || "",
+                placement: "bottom",
+                container: self.$el
+            }).on("click", function(e) {
+                e.preventDefault();
+                self.show(options.id);
+            }));
+            if (this.size() == 1) {
+                this.show(options.id);
+            }
+        },
+
+        /** Delete tab */
+        _remove: function _remove(tab_model) {
+            this.$("#tab-" + tab_model.id).remove();
+            this.$("#" + tab_model.id).remove();
+        },
+
+        /** Reset collection */
+        _reset: function _reset() {
+            this.$nav.empty();
+            this.$content.empty();
+        },
+
+        /** Change tab */
+        _change: function _change(tab_model) {
+            this.$("#tab-" + tab_model.id)[tab_model.get("hidden") ? "hide" : "show"]();
+        },
+
+        /** Main template */
+        _template: function _template() {
+            return $("<div/>").addClass("ui-tabs tabbable tabs-left").append($("<ul/>").attr("style", "display: flex").addClass("tab-navigation nav nav-tabs")).append($("<div/>").addClass("tab-content"));
+        },
+
+        /** Tab template */
+        _template_tab: function _template_tab(options) {
+            var $tmpl = $("<li/>").addClass("tab-element nav-item").attr("id", "tab-" + options.id).append($("<a/>").addClass("nav-link").attr("id", "tab-title-link-" + options.id));
+            var $href = $tmpl.find("a");
+            options.icon && $href.append($("<i/>").addClass("tab-icon fa").addClass(options.icon));
+            $href.append($("<span/>").attr("id", "tab-title-text-" + options.id).addClass("tab-title-text").append(options.title));
+            return $tmpl;
+        }
+    });
+    /**
+     *  Renders tabs e.g. used in the charts editor, behaves similar to repeat and section rendering
+     */
+    exports.default = {
+        View: View
+    };
+});
 //# sourceMappingURL=../../../maps/mvc/ui/ui-tabs.js.map

@@ -1,2 +1,681 @@
-define(["libs/toastr","mvc/library/library-model","mvc/ui/ui-select"],function(a,b,c){var d=Backbone.View.extend({el:"#center",model:null,options:{},events:{"click .toolbtn_modify_dataset":"enableModification","click .toolbtn_cancel_modifications":"render","click .toolbtn-download-dataset":"downloadDataset","click .toolbtn-import-dataset":"importIntoHistory","click .toolbtn-share-dataset":"shareDataset","click .btn-copy-link-to-clipboard":"copyToClipboard","click .btn-make-private":"makeDatasetPrivate","click .btn-remove-restrictions":"removeDatasetRestrictions","click .toolbtn_save_permissions":"savePermissions","click .toolbtn_save_modifications":"comingSoon"},initialize:function(a){this.options=_.extend(this.options,a),this.options.id&&this.fetchDataset()},fetchDataset:function(c){this.options=_.extend(this.options,c),this.model=new b.Item({id:this.options.id});var d=this;this.model.fetch({success:function(){d.options.show_permissions?d.showPermissions():d.options.show_version?d.fetchVersion():d.render()},error:function(b,c){"undefined"!=typeof c.responseJSON?a.error(c.responseJSON.err_msg+" Click this to go back.","",{onclick:function(){Galaxy.libraries.library_router.back()}}):a.error("An error ocurred. Click this to go back.","",{onclick:function(){Galaxy.libraries.library_router.back()}})}})},render:function(a){this.options=_.extend(this.options,a),$(".tooltip").remove();var b=this.templateDataset();this.$el.html(b({item:this.model})),$(".peek").html(this.model.get("peek")),$("#center [data-toggle]").tooltip()},fetchVersion:function(c){this.options=_.extend(this.options,c),that=this,this.options.ldda_id?(this.ldda=new b.Ldda({id:this.options.ldda_id}),this.ldda.url=this.ldda.urlRoot+this.model.id+"/versions/"+this.ldda.id,this.ldda.fetch({success:function(){that.renderVersion()},error:function(b,c){a.error("undefined"!=typeof c.responseJSON?c.responseJSON.err_msg:"An error ocurred.")}})):(this.render(),a.error("Library dataset version requested but no id provided."))},renderVersion:function(){$(".tooltip").remove();var a=this.templateVersion();this.$el.html(a({item:this.model,ldda:this.ldda})),$(".peek").html(this.ldda.get("peek"))},enableModification:function(){$(".tooltip").remove();var a=this.templateModifyDataset();this.$el.html(a({item:this.model})),$(".peek").html(this.model.get("peek")),$("#center [data-toggle]").tooltip()},downloadDataset:function(){var a=(window.galaxy_config?galaxy_config.root:"/")+"api/libraries/datasets/download/uncompressed",b={ld_ids:this.id};this.processDownload(a,b)},processDownload:function(b,c,d){if(b&&c){c="string"==typeof c?c:$.param(c);var e="";$.each(c.split("&"),function(){var a=this.split("=");e+='<input type="hidden" name="'+a[0]+'" value="'+a[1]+'" />'}),$('<form action="'+b+'" method="'+(d||"post")+'">'+e+"</form>").appendTo("body").submit().remove(),a.info("Your download will begin soon.")}},importIntoHistory:function(){this.refreshUserHistoriesList(function(a){var b=a.templateBulkImportInModal();a.modal=Galaxy.modal,a.modal.show({closing_events:!0,title:"Import into History",body:b({histories:a.histories.models}),buttons:{Import:function(){a.importCurrentIntoHistory()},Close:function(){Galaxy.modal.hide()}}})})},refreshUserHistoriesList:function(c){var d=this;this.histories=new b.GalaxyHistories,this.histories.fetch({success:function(b){0===b.length?a.warning("You have to create history first. Click this to do so.","",{onclick:function(){window.location="/"}}):c(d)},error:function(b,c){a.error("undefined"!=typeof c.responseJSON?c.responseJSON.err_msg:"An error ocurred.")}})},importCurrentIntoHistory:function(){var c=$(this.modal.elMain).find("select[name=dataset_import_single] option:selected").val(),d=new b.HistoryItem;d.url=d.urlRoot+c+"/contents",jQuery.getJSON(galaxy_config.root+"history/set_as_current?id="+c),d.save({content:this.id,source:"library"},{success:function(){Galaxy.modal.hide(),a.success("Dataset imported. Click this to start analysing it.","",{onclick:function(){window.location="/"}})},error:function(b,c){a.error("undefined"!=typeof c.responseJSON?"Dataset not imported. "+c.responseJSON.err_msg:"An error occured. Dataset not imported. Please try again.")}})},shareDataset:function(){a.info("Feature coming soon.")},goBack:function(){Galaxy.libraries.library_router.back()},showPermissions:function(b){this.options=_.extend(this.options,b),$(".tooltip").remove(),void 0!==this.options.fetched_permissions&&this.model.set(0===this.options.fetched_permissions.access_dataset_roles.length?{is_unrestricted:!0}:{is_unrestricted:!1});var c=!1;Galaxy.currUser&&(c=Galaxy.currUser.isAdmin());var d=this.templateDatasetPermissions();this.$el.html(d({item:this.model,is_admin:c}));var e=this;void 0===this.options.fetched_permissions?$.get((window.galaxy_config?galaxy_config.root:"/")+"api/libraries/datasets/"+e.id+"/permissions?scope=current").done(function(a){e.prepareSelectBoxes({fetched_permissions:a,is_admin:c})}).fail(function(){a.error("An error occurred while attempting to fetch dataset permissions.")}):this.prepareSelectBoxes({is_admin:c}),$("#center [data-toggle]").tooltip(),$("#center").css("overflow","auto")},prepareSelectBoxes:function(b){this.options=_.extend(this.options,b);for(var d=this.options.fetched_permissions,e=this.options.is_admin,f=this,g=[],h=0;h<d.access_dataset_roles.length;h++)g.push(d.access_dataset_roles[h]+":"+d.access_dataset_roles[h]);for(var i=[],h=0;h<d.modify_item_roles.length;h++)i.push(d.modify_item_roles[h]+":"+d.modify_item_roles[h]);for(var j=[],h=0;h<d.manage_dataset_roles.length;h++)j.push(d.manage_dataset_roles[h]+":"+d.manage_dataset_roles[h]);if(e){var k={minimumInputLength:0,css:"access_perm",multiple:!0,placeholder:"Click to select a role",container:f.$el.find("#access_perm"),ajax:{url:(window.galaxy_config?galaxy_config.root:"/")+"api/libraries/datasets/"+f.id+"/permissions?scope=available",dataType:"json",quietMillis:100,data:function(a,b){return{q:a,page_limit:10,page:b}},results:function(a,b){var c=10*b<a.total;return{results:a.roles,more:c}}},formatResult:function(a){return a.name+" type: "+a.type},formatSelection:function(a){return a.name},initSelection:function(a,b){var c=[];$(a.val().split(",")).each(function(){var a=this.split(":");c.push({id:a[1],name:a[1]})}),b(c)},initialData:g.join(","),dropdownCssClass:"bigdrop"},l={minimumInputLength:0,css:"modify_perm",multiple:!0,placeholder:"Click to select a role",container:f.$el.find("#modify_perm"),ajax:{url:(window.galaxy_config?galaxy_config.root:"/")+"api/libraries/datasets/"+f.id+"/permissions?scope=available",dataType:"json",quietMillis:100,data:function(a,b){return{q:a,page_limit:10,page:b}},results:function(a,b){var c=10*b<a.total;return{results:a.roles,more:c}}},formatResult:function(a){return a.name+" type: "+a.type},formatSelection:function(a){return a.name},initSelection:function(a,b){var c=[];$(a.val().split(",")).each(function(){var a=this.split(":");c.push({id:a[1],name:a[1]})}),b(c)},initialData:i.join(","),dropdownCssClass:"bigdrop"},m={minimumInputLength:0,css:"manage_perm",multiple:!0,placeholder:"Click to select a role",container:f.$el.find("#manage_perm"),ajax:{url:(window.galaxy_config?galaxy_config.root:"/")+"api/libraries/datasets/"+f.id+"/permissions?scope=available",dataType:"json",quietMillis:100,data:function(a,b){return{q:a,page_limit:10,page:b}},results:function(a,b){var c=10*b<a.total;return{results:a.roles,more:c}}},formatResult:function(a){return a.name+" type: "+a.type},formatSelection:function(a){return a.name},initSelection:function(a,b){var c=[];$(a.val().split(",")).each(function(){var a=this.split(":");c.push({id:a[1],name:a[1]})}),b(c)},initialData:j.join(","),dropdownCssClass:"bigdrop"};f.accessSelectObject=new c.View(k),f.modifySelectObject=new c.View(l),f.manageSelectObject=new c.View(m)}else{var n=f.templateAccessSelect();$.get((window.galaxy_config?galaxy_config.root:"/")+"api/libraries/datasets/"+f.id+"/permissions?scope=available",function(a){$(".access_perm").html(n({options:a.roles})),f.accessSelectObject=$("#access_select").select2()}).fail(function(){a.error("An error occurred while attempting to fetch dataset permissions.")})}},comingSoon:function(){a.warning("Feature coming soon.")},copyToClipboard:function(){var a=Backbone.history.location.href;-1!==a.lastIndexOf("/permissions")&&(a=a.substr(0,a.lastIndexOf("/permissions"))),window.prompt("Copy to clipboard: Ctrl+C, Enter",a)},makeDatasetPrivate:function(){var b=this;$.post((window.galaxy_config?galaxy_config.root:"/")+"api/libraries/datasets/"+b.id+"/permissions?action=make_private").done(function(c){b.model.set({is_unrestricted:!1}),b.showPermissions({fetched_permissions:c}),a.success("The dataset is now private to you.")}).fail(function(){a.error("An error occurred while attempting to make dataset private.")})},removeDatasetRestrictions:function(){var b=this;$.post((window.galaxy_config?galaxy_config.root:"/")+"api/libraries/datasets/"+b.id+"/permissions?action=remove_restrictions").done(function(c){b.model.set({is_unrestricted:!0}),b.showPermissions({fetched_permissions:c}),a.success("Access to this dataset is now unrestricted.")}).fail(function(){a.error("An error occurred while attempting to make dataset unrestricted.")})},savePermissions:function(){for(var b=this,c=this.accessSelectObject.$el.select2("data"),d=this.manageSelectObject.$el.select2("data"),e=this.modifySelectObject.$el.select2("data"),f=[],g=[],h=[],i=c.length-1;i>=0;i--)f.push(c[i].id);for(var i=d.length-1;i>=0;i--)g.push(d[i].id);for(var i=e.length-1;i>=0;i--)h.push(e[i].id);$.post((window.galaxy_config?galaxy_config.root:"/")+"api/libraries/datasets/"+b.id+"/permissions?action=set_permissions",{"access_ids[]":f,"manage_ids[]":g,"modify_ids[]":h}).done(function(c){b.showPermissions({fetched_permissions:c}),a.success("Permissions saved.")}).fail(function(){a.error("An error occurred while attempting to set dataset permissions.")})},templateDataset:function(){var a=[];return a.push('<div class="library_style_container">'),a.push('  <div id="library_toolbar">'),a.push('   <button data-toggle="tooltip" data-placement="top" title="Download dataset" class="btn btn-default toolbtn-download-dataset primary-button" type="button"><span class="fa fa-download"></span> Download</span></button>'),a.push('   <button data-toggle="tooltip" data-placement="top" title="Import dataset into history" class="btn btn-default toolbtn-import-dataset primary-button" type="button"><span class="fa fa-book"></span> to History</span></button>'),a.push('   <% if (item.get("can_user_modify")) { %>'),a.push('   <button data-toggle="tooltip" data-placement="top" title="Modify library item" class="btn btn-default toolbtn_modify_dataset primary-button" type="button"><span class="fa fa-pencil"></span> Modify</span></button>'),a.push("   <% } %>"),a.push('   <% if (item.get("can_user_manage")) { %>'),a.push('   <a href="#folders/<%- item.get("folder_id") %>/datasets/<%- item.id %>/permissions"><button data-toggle="tooltip" data-placement="top" title="Manage permissions" class="btn btn-default toolbtn_change_permissions primary-button" type="button"><span class="fa fa-group"></span> Permissions</span></button></a>'),a.push("   <% } %>"),a.push("  </div>"),a.push('<ol class="breadcrumb">'),a.push('   <li><a title="Return to the list of libraries" href="#">Libraries</a></li>'),a.push('   <% _.each(item.get("full_path"), function(path_item) { %>'),a.push("   <% if (path_item[0] != item.id) { %>"),a.push('   <li><a title="Return to this folder" href="#/folders/<%- path_item[0] %>"><%- path_item[1] %></a> </li> '),a.push("<% } else { %>"),a.push('   <li class="active"><span title="You are here"><%- path_item[1] %></span></li>'),a.push("   <% } %>"),a.push("   <% }); %>"),a.push("</ol>"),a.push('<% if (item.get("is_unrestricted")) { %>'),a.push('  <div class="alert alert-info">'),a.push("  This dataset is unrestricted so everybody can access it. Just share the URL of this page. "),a.push('  <button data-toggle="tooltip" data-placement="top" title="Copy to clipboard" class="btn btn-default btn-copy-link-to-clipboard primary-button" type="button"><span class="fa fa-clipboard"></span> To Clipboard</span></button> '),a.push("  </div>"),a.push("<% } %>"),a.push('<div class="dataset_table">'),a.push('   <table class="grid table table-striped table-condensed">'),a.push("       <tr>"),a.push('           <th scope="row" id="id_row" data-id="<%= _.escape(item.get("ldda_id")) %>">Name</th>'),a.push('           <td><%= _.escape(item.get("name")) %></td>'),a.push("       </tr>"),a.push('   <% if (item.get("file_ext")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Data type</th>'),a.push('           <td><%= _.escape(item.get("file_ext")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("genome_build")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Genome build</th>'),a.push('           <td><%= _.escape(item.get("genome_build")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("file_size")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Size</th>'),a.push('           <td><%= _.escape(item.get("file_size")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("date_uploaded")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Date uploaded (UTC)</th>'),a.push('           <td><%= _.escape(item.get("date_uploaded")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("uploaded_by")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Uploaded by</th>'),a.push('           <td><%= _.escape(item.get("uploaded_by")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("metadata_data_lines")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Data Lines</th>'),a.push('           <td scope="row"><%= _.escape(item.get("metadata_data_lines")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("metadata_comment_lines")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Comment Lines</th>'),a.push('           <td scope="row"><%= _.escape(item.get("metadata_comment_lines")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("metadata_columns")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Number of Columns</th>'),a.push('           <td scope="row"><%= _.escape(item.get("metadata_columns")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("metadata_column_types")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Column Types</th>'),a.push('           <td scope="row"><%= _.escape(item.get("metadata_column_types")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("message")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Message</th>'),a.push('           <td scope="row"><%= _.escape(item.get("message")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("misc_blurb")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Miscellaneous blurb</th>'),a.push('           <td scope="row"><%= _.escape(item.get("misc_blurb")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (item.get("misc_info")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Miscellaneous information</th>'),a.push('           <td scope="row"><%= _.escape(item.get("misc_info")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push("    </table>"),a.push("    <div>"),a.push('        <pre class="peek">'),a.push("        </pre>"),a.push("    </div>"),a.push('   <% if (item.get("has_versions")) { %>'),a.push("      <div>"),a.push("      <h3>Expired versions:</h3>"),a.push("      <ul>"),a.push('      <% _.each(item.get("expired_versions"), function(version) { %>'),a.push('        <li><a title="See details of this version" href="#folders/<%- item.get("folder_id") %>/datasets/<%- item.id %>/versions/<%- version[0] %>"><%- version[1] %></a></li>'),a.push("      <% }) %>"),a.push("      <ul>"),a.push("      </div>"),a.push("   <% } %>"),a.push("</div>"),a.push("</div>"),_.template(a.join(""))},templateVersion:function(){var a=[];return a.push('<div class="library_style_container">'),a.push('  <div id="library_toolbar">'),a.push('   <a href="#folders/<%- item.get("folder_id") %>/datasets/<%- item.id %>"><button data-toggle="tooltip" data-placement="top" title="Go to latest dataset" class="btn btn-default primary-button" type="button"><span class="fa fa-caret-left fa-lg"></span> Latest dataset</span></button><a>'),a.push("  </div>"),a.push('<ol class="breadcrumb">'),a.push('   <li><a title="Return to the list of libraries" href="#">Libraries</a></li>'),a.push('   <% _.each(item.get("full_path"), function(path_item) { %>'),a.push("   <% if (path_item[0] != item.id) { %>"),a.push('   <li><a title="Return to this folder" href="#/folders/<%- path_item[0] %>"><%- path_item[1] %></a> </li> '),a.push("<% } else { %>"),a.push('   <li class="active"><span title="You are here"><%- path_item[1] %></span></li>'),a.push("   <% } %>"),a.push("   <% }); %>"),a.push("</ol>"),a.push('  <div class="alert alert-warning">This is an expired version of the library dataset: <%= _.escape(item.get("name")) %></div>'),a.push('<div class="dataset_table">'),a.push('   <table class="grid table table-striped table-condensed">'),a.push("       <tr>"),a.push('           <th scope="row" id="id_row" data-id="<%= _.escape(ldda.id) %>">Name</th>'),a.push('           <td><%= _.escape(ldda.get("name")) %></td>'),a.push("       </tr>"),a.push('   <% if (ldda.get("file_ext")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Data type</th>'),a.push('           <td><%= _.escape(ldda.get("file_ext")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("genome_build")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Genome build</th>'),a.push('           <td><%= _.escape(ldda.get("genome_build")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("file_size")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Size</th>'),a.push('           <td><%= _.escape(ldda.get("file_size")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("date_uploaded")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Date uploaded (UTC)</th>'),a.push('           <td><%= _.escape(ldda.get("date_uploaded")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("uploaded_by")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Uploaded by</th>'),a.push('           <td><%= _.escape(ldda.get("uploaded_by")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("metadata_data_lines")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Data Lines</th>'),a.push('           <td scope="row"><%= _.escape(ldda.get("metadata_data_lines")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("metadata_comment_lines")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Comment Lines</th>'),a.push('           <td scope="row"><%= _.escape(ldda.get("metadata_comment_lines")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("metadata_columns")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Number of Columns</th>'),a.push('           <td scope="row"><%= _.escape(ldda.get("metadata_columns")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("metadata_column_types")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Column Types</th>'),a.push('           <td scope="row"><%= _.escape(ldda.get("metadata_column_types")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("message")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Message</th>'),a.push('           <td scope="row"><%= _.escape(ldda.get("message")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("misc_blurb")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Miscellaneous blurb</th>'),a.push('           <td scope="row"><%= _.escape(ldda.get("misc_blurb")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push('   <% if (ldda.get("misc_info")) { %>'),a.push("       <tr>"),a.push('           <th scope="row">Miscellaneous information</th>'),a.push('           <td scope="row"><%= _.escape(ldda.get("misc_info")) %></td>'),a.push("       </tr>"),a.push("   <% } %>"),a.push("    </table>"),a.push("    <div>"),a.push('        <pre class="peek">'),a.push("        </pre>"),a.push("    </div>"),a.push("</div>"),a.push("</div>"),_.template(a.join(""))},templateModifyDataset:function(){var a=[];return a.push('<div class="library_style_container">'),a.push('  <div id="library_toolbar">'),a.push('   <button data-toggle="tooltip" data-placement="top" title="Cancel modifications" class="btn btn-default toolbtn_cancel_modifications primary-button" type="button"><span class="fa fa-times"></span> Cancel</span></button>'),a.push('   <button data-toggle="tooltip" data-placement="top" title="Save modifications" class="btn btn-default toolbtn_save_modifications primary-button" type="button"><span class="fa fa-floppy-o"></span> Save</span></button>'),a.push("  </div>"),a.push('<ol class="breadcrumb">'),a.push('   <li><a title="Return to the list of libraries" href="#">Libraries</a></li>'),a.push('   <% _.each(item.get("full_path"), function(path_item) { %>'),a.push("   <% if (path_item[0] != item.id) { %>"),a.push('   <li><a title="Return to this folder" href="#/folders/<%- path_item[0] %>"><%- path_item[1] %></a> </li> '),a.push("<% } else { %>"),a.push('   <li class="active"><span title="You are here"><%- path_item[1] %></span></li>'),a.push("   <% } %>"),a.push("   <% }); %>"),a.push("</ol>"),a.push('<div class="dataset_table">'),a.push('<p>For more editing options please import the dataset to history and use "Edit attributes" on it.</p>'),a.push('   <table class="grid table table-striped table-condensed">'),a.push("       <tr>"),a.push('           <th scope="row" id="id_row" data-id="<%= _.escape(item.get("ldda_id")) %>">Name</th>'),a.push('           <td><input class="input_dataset_name form-control" type="text" placeholder="name" value="<%= _.escape(item.get("name")) %>"></td>'),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Data type</th>'),a.push('           <td><%= _.escape(item.get("file_ext")) %></td>'),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Genome build</th>'),a.push('           <td><%= _.escape(item.get("genome_build")) %></td>'),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Size</th>'),a.push('           <td><%= _.escape(item.get("file_size")) %></td>'),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Date uploaded (UTC)</th>'),a.push('           <td><%= _.escape(item.get("date_uploaded")) %></td>'),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Uploaded by</th>'),a.push('           <td><%= _.escape(item.get("uploaded_by")) %></td>'),a.push("       </tr>"),a.push('           <tr scope="row">'),a.push('           <th scope="row">Data Lines</th>'),a.push('           <td scope="row"><%= _.escape(item.get("metadata_data_lines")) %></td>'),a.push("       </tr>"),a.push('       <th scope="row">Comment Lines</th>'),a.push('           <% if (item.get("metadata_comment_lines") === "") { %>'),a.push('               <td scope="row"><%= _.escape(item.get("metadata_comment_lines")) %></td>'),a.push("           <% } else { %>"),a.push('               <td scope="row">unknown</td>'),a.push("           <% } %>"),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Number of Columns</th>'),a.push('           <td scope="row"><%= _.escape(item.get("metadata_columns")) %></td>'),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Column Types</th>'),a.push('           <td scope="row"><%= _.escape(item.get("metadata_column_types")) %></td>'),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Message</th>'),a.push('           <td scope="row"><%= _.escape(item.get("message")) %></td>'),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Miscellaneous information</th>'),a.push('           <td scope="row"><%= _.escape(item.get("misc_info")) %></td>'),a.push("       </tr>"),a.push("       <tr>"),a.push('           <th scope="row">Miscellaneous blurb</th>'),a.push('           <td scope="row"><%= _.escape(item.get("misc_blurb")) %></td>'),a.push("       </tr>"),a.push("   </table>"),a.push("<div>"),a.push('   <pre class="peek">'),a.push("   </pre>"),a.push("</div>"),a.push("</div>"),a.push("</div>"),_.template(a.join(""))},templateDatasetPermissions:function(){var a=[];return a.push('<div class="library_style_container">'),a.push('  <div id="library_toolbar">'),a.push('   <a href="#folders/<%- item.get("folder_id") %>"><button data-toggle="tooltip" data-placement="top" title="Go back to containing folder" class="btn btn-default primary-button" type="button"><span class="fa fa-folder-open-o"></span> Containing Folder</span></button></a>'),a.push('   <a href="#folders/<%- item.get("folder_id") %>/datasets/<%- item.id %>"><button data-toggle="tooltip" data-placement="top" title="Go back to dataset" class="btn btn-default primary-button" type="button"><span class="fa fa-file-o"></span> Dataset Details</span></button><a>'),a.push("  </div>"),a.push('<ol class="breadcrumb">'),a.push('   <li><a title="Return to the list of libraries" href="#">Libraries</a></li>'),a.push('   <% _.each(item.get("full_path"), function(path_item) { %>'),a.push("   <% if (path_item[0] != item.id) { %>"),a.push('   <li><a title="Return to this folder" href="#/folders/<%- path_item[0] %>"><%- path_item[1] %></a> </li> '),a.push("<% } else { %>"),a.push('   <li class="active"><span title="You are here"><%- path_item[1] %></span></li>'),a.push("   <% } %>"),a.push("   <% }); %>"),a.push("</ol>"),a.push('<h1>Dataset: <%= _.escape(item.get("name")) %></h1>'),a.push('<div class="alert alert-warning">'),a.push("<% if (is_admin) { %>"),a.push("You are logged in as an <strong>administrator</strong> therefore you can manage any dataset on this Galaxy instance. Please make sure you understand the consequences."),a.push("<% } else { %>"),a.push("You can assign any number of roles to any of the following permission types. However please read carefully the implications of such actions."),a.push("<% } %>"),a.push("</div>"),a.push('<div class="dataset_table">'),a.push("<h2>Library-related permissions</h2>"),a.push("<h4>Roles that can modify the library item</h4>"),a.push('<div id="modify_perm" class="modify_perm roles-selection"></div>'),a.push('<div class="alert alert-info roles-selection">User with <strong>any</strong> of these roles can modify name, metadata, and other information about this library item.</div>'),a.push("<hr/>"),a.push("<h2>Dataset-related permissions</h2>"),a.push('<div class="alert alert-warning">Changes made below will affect <strong>every</strong> library item that was created from this dataset and also every history this dataset is part of.</div>'),a.push('<% if (!item.get("is_unrestricted")) { %>'),a.push(" <p>You can remove all access restrictions on this dataset. "),a.push(' <button data-toggle="tooltip" data-placement="top" title="Everybody will be able to access the dataset." class="btn btn-default btn-remove-restrictions primary-button" type="button">'),a.push(' <span class="fa fa-globe"> Remove restrictions</span>'),a.push(" </button>"),a.push(" </p>"),a.push("<% } else { %>"),a.push("  This dataset is unrestricted so everybody can access it. Just share the URL of this page."),a.push('  <button data-toggle="tooltip" data-placement="top" title="Copy to clipboard" class="btn btn-default btn-copy-link-to-clipboard primary-button" type="button"><span class="fa fa-clipboard"> To Clipboard</span></button> '),a.push("  <p>You can make this dataset private to you. "),a.push(' <button data-toggle="tooltip" data-placement="top" title="Only you will be able to access the dataset." class="btn btn-default btn-make-private primary-button" type="button"><span class="fa fa-key"> Make Private</span></button>'),a.push(" </p>"),a.push("<% } %>"),a.push("<h4>Roles that can access the dataset</h4>"),a.push('<div id="access_perm" class="access_perm roles-selection"></div>'),a.push('<div class="alert alert-info roles-selection">User has to have <strong>all these roles</strong> in order to access this dataset. Users without access permission <strong>cannot</strong> have other permissions on this dataset. If there are no access roles set on the dataset it is considered <strong>unrestricted</strong>.</div>'),a.push("<h4>Roles that can manage permissions on the dataset</h4>"),a.push('<div id="manage_perm" class="manage_perm roles-selection"></div>'),a.push('<div class="alert alert-info roles-selection">User with <strong>any</strong> of these roles can manage permissions of this dataset. If you remove yourself you will loose the ability manage this dataset unless you are an admin.</div>'),a.push('<button data-toggle="tooltip" data-placement="top" title="Save modifications made on this page" class="btn btn-default toolbtn_save_permissions primary-button" type="button"><span class="fa fa-floppy-o"></span> Save</span></button>'),a.push("</div>"),a.push("</div>"),_.template(a.join(""))},templateBulkImportInModal:function(){var a=[];return a.push('<span id="history_modal_combo_bulk" style="width:90%; margin-left: 1em; margin-right: 1em; ">'),a.push("Select history: "),a.push('<select id="dataset_import_single" name="dataset_import_single" style="width:50%; margin-bottom: 1em; "> '),a.push("   <% _.each(histories, function(history) { %>"),a.push('       <option value="<%= _.escape(history.get("id")) %>"><%= _.escape(history.get("name")) %></option>'),a.push("   <% }); %>"),a.push("</select>"),a.push("</span>"),_.template(a.join(""))},templateAccessSelect:function(){var a=[];return a.push('<select id="access_select" multiple>'),a.push("   <% _.each(options, function(option) { %>"),a.push('       <option value="<%- option.name %>"><%- option.name %></option>'),a.push("   <% }); %>"),a.push("</select>"),_.template(a.join(""))}});return{LibraryDatasetView:d}});
+define("mvc/library/library-dataset-view", ["exports", "utils/localization", "libs/toastr", "mvc/library/library-model", "utils/utils", "mvc/ui/ui-select"], function(exports, _localization, _toastr, _libraryModel, _utils, _uiSelect) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var _localization2 = _interopRequireDefault(_localization);
+
+    var _toastr2 = _interopRequireDefault(_toastr);
+
+    var _libraryModel2 = _interopRequireDefault(_libraryModel);
+
+    var _utils2 = _interopRequireDefault(_utils);
+
+    var _uiSelect2 = _interopRequireDefault(_uiSelect);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    var LibraryDatasetView = Backbone.View.extend({
+        el: "#center",
+
+        model: null,
+
+        options: {},
+
+        defaults: {
+            edit_mode: false
+        },
+
+        events: {
+            "click .toolbtn_modify_dataset": "enableModification",
+            "click .toolbtn_cancel_modifications": "render",
+            "click .toolbtn-download-dataset": "downloadDataset",
+            "click .toolbtn-import-dataset": "importIntoHistory",
+            "click .copy-link-to-clipboard": "copyToClipboard",
+            "click .make-private": "makeDatasetPrivate",
+            "click .remove-restrictions": "removeDatasetRestrictions",
+            "click .toolbtn_save_permissions": "savePermissions",
+            "click .toolbtn_save_modifications": "saveModifications"
+        },
+
+        // genome select
+        select_genome: null,
+
+        // extension select
+        select_extension: null,
+
+        // extension types
+        list_extensions: [],
+
+        // datatype placeholder for extension auto-detection
+        auto: {
+            id: "auto",
+            text: "Auto-detect",
+            description: "This system will try to detect the file type automatically." + " If your file is not detected properly as one of the known formats," + " it most likely means that it has some format problems (e.g., different" + " number of columns on different rows). You can still coerce the system" + " to set your data to the format you think it should be." + " You can also upload compressed files, which will automatically be decompressed."
+        },
+
+        // genomes
+        list_genomes: [],
+
+        initialize: function initialize(options) {
+            this.options = _.extend(this.options, options);
+            this.fetchExtAndGenomes();
+            if (this.options.id) {
+                this.fetchDataset();
+            }
+        },
+
+        fetchDataset: function fetchDataset(options) {
+            this.options = _.extend(this.options, options);
+            this.model = new _libraryModel2.default.Item({
+                id: this.options.id
+            });
+            var self = this;
+            this.model.fetch({
+                success: function success() {
+                    if (self.options.show_permissions) {
+                        self.showPermissions();
+                    } else if (self.options.show_version) {
+                        self.fetchVersion();
+                    } else {
+                        self.render();
+                    }
+                },
+                error: function error(model, response) {
+                    if (typeof response.responseJSON !== "undefined") {
+                        _toastr2.default.error(response.responseJSON.err_msg + " Click this to go back.", "", {
+                            onclick: function onclick() {
+                                Galaxy.libraries.library_router.back();
+                            }
+                        });
+                    } else {
+                        _toastr2.default.error("An error occurred. Click this to go back.", "", {
+                            onclick: function onclick() {
+                                Galaxy.libraries.library_router.back();
+                            }
+                        });
+                    }
+                }
+            });
+        },
+
+        render: function render(options) {
+            this.options = _.extend(this.options, options);
+            $(".tooltip").remove();
+            var template = this.templateDataset();
+            this.$el.html(template({
+                item: this.model
+            }));
+            $(".peek").html(this.model.get("peek"));
+            $('#center [data-toggle="tooltip"]').tooltip({
+                trigger: "hover"
+            });
+        },
+
+        fetchVersion: function fetchVersion(options) {
+            this.options = _.extend(this.options, options);
+            var self = this;
+            if (!this.options.ldda_id) {
+                this.render();
+                _toastr2.default.error("Library dataset version requested but no id provided.");
+            } else {
+                this.ldda = new _libraryModel2.default.Ldda({
+                    id: this.options.ldda_id
+                });
+                this.ldda.url = this.ldda.urlRoot + this.model.id + "/versions/" + this.ldda.id;
+                this.ldda.fetch({
+                    success: function success() {
+                        self.renderVersion();
+                    },
+                    error: function error(model, response) {
+                        if (typeof response.responseJSON !== "undefined") {
+                            _toastr2.default.error(response.responseJSON.err_msg);
+                        } else {
+                            _toastr2.default.error("An error occurred.");
+                        }
+                    }
+                });
+            }
+        },
+
+        renderVersion: function renderVersion() {
+            $(".tooltip").remove();
+            var template = this.templateVersion();
+            this.$el.html(template({
+                item: this.model,
+                ldda: this.ldda
+            }));
+            $(".peek").html(this.ldda.get("peek"));
+        },
+
+        enableModification: function enableModification() {
+            $(".tooltip").remove();
+            var template = this.templateModifyDataset();
+            this.$el.html(template({
+                item: this.model
+            }));
+            this.renderSelectBoxes({
+                genome_build: this.model.get("genome_build"),
+                file_ext: this.model.get("file_ext")
+            });
+            $(".peek").html(this.model.get("peek"));
+            $('#center [data-toggle="tooltip"]').tooltip({
+                trigger: "hover"
+            });
+        },
+
+        downloadDataset: function downloadDataset() {
+            var url = Galaxy.root + "api/libraries/datasets/download/uncompressed";
+            var data = {
+                ld_ids: this.id
+            };
+            this.processDownload(url, data);
+        },
+
+        processDownload: function processDownload(url, data, method) {
+            //url and data options required
+            if (url && data) {
+                //data can be string of parameters or array/object
+                data = typeof data == "string" ? data : $.param(data);
+                //split params into form inputs
+                var inputs = "";
+                $.each(data.split("&"), function() {
+                    var pair = this.split("=");
+                    inputs += "<input type=\"hidden\" name=\"" + pair[0] + "\" value=\"" + pair[1] + "\" />";
+                });
+                //send request
+                $("<form action=\"" + url + "\" method=\"" + (method || "post") + "\">" + inputs + "</form>").appendTo("body").submit().remove();
+
+                _toastr2.default.info("Your download will begin soon.");
+            }
+        },
+
+        importIntoHistory: function importIntoHistory() {
+            this.refreshUserHistoriesList(function(self) {
+                var template = self.templateBulkImportInModal();
+                self.modal = Galaxy.modal;
+                self.modal.show({
+                    closing_events: true,
+                    title: (0, _localization2.default)("Import into History"),
+                    body: template({
+                        histories: self.histories.models
+                    }),
+                    buttons: {
+                        Import: function Import() {
+                            self.importCurrentIntoHistory();
+                        },
+                        Close: function Close() {
+                            Galaxy.modal.hide();
+                        }
+                    }
+                });
+            });
+        },
+
+        refreshUserHistoriesList: function refreshUserHistoriesList(callback) {
+            var self = this;
+            this.histories = new _libraryModel2.default.GalaxyHistories();
+            this.histories.fetch({
+                success: function success(histories) {
+                    if (histories.length === 0) {
+                        _toastr2.default.warning("You have to create history first. Click this to do so.", "", {
+                            onclick: function onclick() {
+                                window.location = Galaxy.root;
+                            }
+                        });
+                    } else {
+                        callback(self);
+                    }
+                },
+                error: function error(model, response) {
+                    if (typeof response.responseJSON !== "undefined") {
+                        _toastr2.default.error(response.responseJSON.err_msg);
+                    } else {
+                        _toastr2.default.error("An error occurred.");
+                    }
+                }
+            });
+        },
+
+        importCurrentIntoHistory: function importCurrentIntoHistory() {
+            this.modal.disableButton("Import");
+            var new_history_name = this.modal.$("input[name=history_name]").val();
+            var self = this;
+            if (new_history_name !== "") {
+                $.post(Galaxy.root + "api/histories", {
+                    name: new_history_name
+                }).done(function(new_history) {
+                    self.processImportToHistory(new_history.id);
+                }).fail(function(xhr, status, error) {
+                    _toastr2.default.error("An error occurred.");
+                }).always(function() {
+                    self.modal.enableButton("Import");
+                });
+            } else {
+                var history_id = $(this.modal.$el).find("select[name=dataset_import_single] option:selected").val();
+                this.processImportToHistory(history_id);
+                this.modal.enableButton("Import");
+            }
+        },
+
+        processImportToHistory: function processImportToHistory(history_id) {
+            var historyItem = new _libraryModel2.default.HistoryItem();
+            historyItem.url = historyItem.urlRoot + history_id + "/contents";
+            // set the used history as current so user will see the last one
+            // that he imported into in the history panel on the 'analysis' page
+            jQuery.getJSON(Galaxy.root + "history/set_as_current?id=" + history_id);
+            // save the dataset into selected history
+            historyItem.save({
+                content: this.id,
+                source: "library"
+            }, {
+                success: function success() {
+                    Galaxy.modal.hide();
+                    _toastr2.default.success("Dataset imported. Click this to start analyzing it.", "", {
+                        onclick: function onclick() {
+                            window.location = Galaxy.root;
+                        }
+                    });
+                },
+                error: function error(model, response) {
+                    if (typeof response.responseJSON !== "undefined") {
+                        _toastr2.default.error("Dataset not imported. " + response.responseJSON.err_msg);
+                    } else {
+                        _toastr2.default.error("An error occured. Dataset not imported. Please try again.");
+                    }
+                }
+            });
+        },
+
+        showPermissions: function showPermissions(options) {
+            var template = this.templateDatasetPermissions();
+            var self = this;
+            this.options = _.extend(this.options, options);
+            $(".tooltip").remove();
+            if (this.options.fetched_permissions !== undefined) {
+                if (this.options.fetched_permissions.access_dataset_roles.length === 0) {
+                    this.model.set({
+                        is_unrestricted: true
+                    });
+                } else {
+                    this.model.set({
+                        is_unrestricted: false
+                    });
+                }
+            }
+            this.$el.html(template({
+                item: this.model,
+                is_admin: Galaxy.config.is_admin_user
+            }));
+            $.get(Galaxy.root + "api/libraries/datasets/" + self.id + "/permissions?scope=current").done(function(fetched_permissions) {
+                self.prepareSelectBoxes({
+                    fetched_permissions: fetched_permissions,
+                    is_admin: Galaxy.config.is_admin_user
+                });
+            }).fail(function() {
+                _toastr2.default.error("An error occurred while attempting to fetch dataset permissions.");
+            });
+            $('#center [data-toggle="tooltip"]').tooltip({
+                trigger: "hover"
+            });
+            $("#center").css("overflow", "auto");
+        },
+
+        _serializeRoles: function _serializeRoles(role_list) {
+            var selected_roles = [];
+            for (var i = 0; i < role_list.length; i++) {
+                // Replace the : and , in role's name since these are select2 separators for initialData
+                selected_roles.push(role_list[i][1] + ":" + role_list[i][0].replace(":", " ").replace(",", " &"));
+            }
+            return selected_roles;
+        },
+
+        prepareSelectBoxes: function prepareSelectBoxes(options) {
+            this.options = _.extend(this.options, options);
+            this.accessSelectObject = new _uiSelect2.default.View(this._generate_select_options({
+                selector: "access_perm",
+                initialData: this._serializeRoles(this.options.fetched_permissions.access_dataset_roles)
+            }));
+            this.modifySelectObject = new _uiSelect2.default.View(this._generate_select_options({
+                selector: "modify_perm",
+                initialData: this._serializeRoles(this.options.fetched_permissions.modify_item_roles)
+            }));
+            this.manageSelectObject = new _uiSelect2.default.View(this._generate_select_options({
+                selector: "manage_perm",
+                initialData: this._serializeRoles(this.options.fetched_permissions.manage_dataset_roles)
+            }));
+        },
+
+        _generate_select_options: function _generate_select_options(options) {
+            var select_options = {
+                minimumInputLength: 0,
+                multiple: true,
+                placeholder: "Click to select a role",
+                formatResult: function roleFormatResult(role) {
+                    return role.name + " type: " + role.type;
+                },
+                formatSelection: function roleFormatSelection(role) {
+                    return role.name;
+                },
+                initSelection: function initSelection(element, callback) {
+                    // the input tag has a value attribute preloaded that points to a preselected role's id
+                    // this function resolves that id attribute to an object that select2 can render
+                    // using its formatResult renderer - that way the role name is shown preselected
+                    var data = [];
+                    $(element.val().split(",")).each(function() {
+                        var item = this.split(":");
+                        data.push({
+                            id: item[0],
+                            name: item[1]
+                        });
+                    });
+                    callback(data);
+                },
+                dropdownCssClass: "bigdrop" // apply css that makes the dropdown taller
+            };
+            select_options.container = this.$el.find("#" + options.selector);
+            select_options.css = options.selector;
+            select_options.initialData = options.initialData.join(",");
+            select_options.ajax = {
+                url: Galaxy.root + "api/libraries/datasets/" + this.id + "/permissions?scope=available",
+                dataType: "json",
+                quietMillis: 100,
+                data: function data(term, page) {
+                    // page is the one-based page number tracked by Select2
+                    return {
+                        q: term, //search term
+                        page_limit: 10, // page size, should be same as used in 'more' variable below
+                        page: page // page number
+                    };
+                },
+                results: function results(data, page) {
+                    var more = page * 10 < data.total; // whether or not there are more results available
+                    // notice we return the value of more so Select2 knows if more results can be loaded
+                    return {
+                        results: data.roles,
+                        more: more
+                    };
+                }
+            };
+            return select_options;
+        },
+
+        /**
+         * Save the changes made to the library dataset.
+         */
+        saveModifications: function saveModifications(options) {
+            var is_changed = false;
+            var ld = this.model;
+            var new_name = this.$el.find(".input_dataset_name").val();
+            if (typeof new_name !== "undefined" && new_name !== ld.get("name")) {
+                if (new_name.length > 0) {
+                    ld.set("name", new_name);
+                    is_changed = true;
+                } else {
+                    _toastr2.default.warning("Library dataset name has to be at least 1 character long.");
+                    return;
+                }
+            }
+            var new_info = this.$el.find(".input_dataset_misc_info").val();
+            if (typeof new_info !== "undefined" && new_info !== ld.get("misc_info")) {
+                ld.set("misc_info", new_info);
+                is_changed = true;
+            }
+            var new_message = this.$el.find(".input_dataset_message").val();
+            if (typeof new_message !== "undefined" && new_message !== ld.get("message")) {
+                ld.set("message", new_message);
+                is_changed = true;
+            }
+            var new_genome_build = this.select_genome.$el.select2("data").id;
+            if (typeof new_genome_build !== "undefined" && new_genome_build !== ld.get("genome_build")) {
+                ld.set("genome_build", new_genome_build);
+                is_changed = true;
+            }
+            var new_ext = this.select_extension.$el.select2("data").id;
+            if (typeof new_ext !== "undefined" && new_ext !== ld.get("file_ext")) {
+                ld.set("file_ext", new_ext);
+                is_changed = true;
+            }
+            var dataset_view = this;
+            if (is_changed) {
+                ld.save(null, {
+                    patch: true,
+                    success: function success(ld) {
+                        dataset_view.render();
+                        _toastr2.default.success("Changes to library dataset saved.");
+                    },
+                    error: function error(model, response) {
+                        if (typeof response.responseJSON !== "undefined") {
+                            _toastr2.default.error(response.responseJSON.err_msg);
+                        } else {
+                            _toastr2.default.error("An error occured while attempting to update the library dataset.");
+                        }
+                    }
+                });
+            } else {
+                dataset_view.render();
+                _toastr2.default.info("Nothing has changed.");
+            }
+        },
+
+        copyToClipboard: function copyToClipboard(e) {
+            e.preventDefault();
+            var href = Backbone.history.location.href;
+            if (href.lastIndexOf("/permissions") !== -1) {
+                href = href.substr(0, href.lastIndexOf("/permissions"));
+            }
+            window.prompt("Copy to clipboard: Ctrl+C, Enter", href);
+        },
+
+        makeDatasetPrivate: function makeDatasetPrivate() {
+            var self = this;
+            $.post(Galaxy.root + "api/libraries/datasets/" + self.id + "/permissions?action=make_private").done(function(fetched_permissions) {
+                self.model.set({
+                    is_unrestricted: false
+                });
+                self.showPermissions({
+                    fetched_permissions: fetched_permissions
+                });
+                _toastr2.default.success("The dataset is now private to you.");
+            }).fail(function() {
+                _toastr2.default.error("An error occurred while attempting to make dataset private.");
+            });
+        },
+
+        removeDatasetRestrictions: function removeDatasetRestrictions() {
+            var self = this;
+            $.post(Galaxy.root + "api/libraries/datasets/" + self.id + "/permissions?action=remove_restrictions").done(function(fetched_permissions) {
+                self.model.set({
+                    is_unrestricted: true
+                });
+                self.showPermissions({
+                    fetched_permissions: fetched_permissions
+                });
+                _toastr2.default.success("Access to this dataset is now unrestricted.");
+            }).fail(function() {
+                _toastr2.default.error("An error occurred while attempting to make dataset unrestricted.");
+            });
+        },
+
+        /**
+         * Extract the role ids from Select2 elements's 'data'
+         */
+        _extractIds: function _extractIds(roles_list) {
+            var ids_list = [];
+            for (var i = roles_list.length - 1; i >= 0; i--) {
+                ids_list.push(roles_list[i].id);
+            }
+            return ids_list;
+        },
+
+        /**
+         * Save the permissions for roles entered in the select boxes.
+         */
+        savePermissions: function savePermissions(event) {
+            var self = this;
+            var access_ids = this._extractIds(this.accessSelectObject.$el.select2("data"));
+            var manage_ids = this._extractIds(this.manageSelectObject.$el.select2("data"));
+            var modify_ids = this._extractIds(this.modifySelectObject.$el.select2("data"));
+            $.post(Galaxy.root + "api/libraries/datasets/" + self.id + "/permissions?action=set_permissions", {
+                "access_ids[]": access_ids,
+                "manage_ids[]": manage_ids,
+                "modify_ids[]": modify_ids
+            }).done(function(fetched_permissions) {
+                self.showPermissions({
+                    fetched_permissions: fetched_permissions
+                });
+                _toastr2.default.success("Permissions saved.");
+            }).fail(function() {
+                _toastr2.default.error("An error occurred while attempting to set dataset permissions.");
+            });
+        },
+
+        /**
+         * If needed request all extensions and/or genomes from Galaxy
+         * and save them in sorted arrays.
+         */
+        fetchExtAndGenomes: function fetchExtAndGenomes() {
+            var self = this;
+            if (this.list_genomes.length == 0) {
+                _utils2.default.get({
+                    url: Galaxy.root + "api/datatypes?extension_only=False",
+                    success: function success(datatypes) {
+                        for (var key in datatypes) {
+                            self.list_extensions.push({
+                                id: datatypes[key].extension,
+                                text: datatypes[key].extension,
+                                description: datatypes[key].description,
+                                description_url: datatypes[key].description_url
+                            });
+                        }
+                        self.list_extensions.sort(function(a, b) {
+                            return a.id > b.id ? 1 : a.id < b.id ? -1 : 0;
+                        });
+                        self.list_extensions.unshift(self.auto);
+                    }
+                });
+            }
+            if (this.list_extensions.length == 0) {
+                _utils2.default.get({
+                    url: Galaxy.root + "api/genomes",
+                    success: function success(genomes) {
+                        for (var key in genomes) {
+                            self.list_genomes.push({
+                                id: genomes[key][1],
+                                text: genomes[key][0]
+                            });
+                        }
+                        self.list_genomes.sort(function(a, b) {
+                            return a.id > b.id ? 1 : a.id < b.id ? -1 : 0;
+                        });
+                    }
+                });
+            }
+        },
+
+        renderSelectBoxes: function renderSelectBoxes(options) {
+            // This won't work properly unlesss we already have the data fetched.
+            // See this.fetchExtAndGenomes()
+            // TODO switch to common resources:
+            // https://trello.com/c/dIUE9YPl/1933-ui-common-resources-and-data-into-galaxy-object
+            var self = this;
+            var current_genome = "?";
+            var current_ext = "auto";
+            if (typeof options !== "undefined") {
+                if (typeof options.genome_build !== "undefined") {
+                    current_genome = options.genome_build;
+                }
+                if (typeof options.file_ext !== "undefined") {
+                    current_ext = options.file_ext;
+                }
+            }
+            this.select_genome = new _uiSelect2.default.View({
+                css: "dataset-genome-select",
+                data: self.list_genomes,
+                container: self.$el.find("#dataset_genome_select"),
+                value: current_genome
+            });
+            this.select_extension = new _uiSelect2.default.View({
+                css: "dataset-extension-select",
+                data: self.list_extensions,
+                container: self.$el.find("#dataset_extension_select"),
+                value: current_ext
+            });
+        },
+
+        templateDataset: function templateDataset() {
+            return _.template([
+                // CONTAINER START
+                '<div class="library_style_container">', '<div class="d-flex mb-2">', '<button data-toggle="tooltip" data-placement="top" title="Download dataset" class="btn btn-secondary toolbtn-download-dataset toolbar-item mr-1" type="button">', '<span class="fa fa-download"></span>', "&nbsp;Download", "</button>", '<button data-toggle="tooltip" data-placement="top" title="Import dataset into history" class="btn btn-secondary toolbtn-import-dataset toolbar-item mr-1" type="button">', '<span class="fa fa-book"></span>', "&nbsp;to History", "</button>", '<% if (item.get("can_user_modify")) { %>', '<button data-toggle="tooltip" data-placement="top" title="Modify library item" class="btn btn-secondary toolbtn_modify_dataset toolbar-item mr-1" type="button">', '<span class="fa fa-pencil"></span>', "&nbsp;Modify", "</button>", "<% } %>", '<% if (item.get("can_user_manage")) { %>', '<a href="#folders/<%- item.get("folder_id") %>/datasets/<%- item.id %>/permissions">', '<button data-toggle="tooltip" data-placement="top" title="Manage permissions" class="btn btn-secondary toolbtn_change_permissions toolbar-item mr-1" type="button">', '<span class="fa fa-group"></span>', "&nbsp;Permissions", "</button>", "</a>", "<% } %>", "</div>",
+
+                // BREADCRUMBS
+                '<ol class="breadcrumb">', '<li class="breadcrumb-item"><a title="Return to the list of libraries" href="#">Libraries</a></li>', '<% _.each(item.get("full_path"), function(path_item) { %>', "<% if (path_item[0] != item.id) { %>", '<li class="breadcrumb-item"><a title="Return to this folder" href="#/folders/<%- path_item[0] %>"><%- path_item[1] %></a> </li> ', "<% } else { %>", '<li class="breadcrumb-item active"><span title="You are here"><%- path_item[1] %></span></li>', "<% } %>", "<% }); %>", "</ol>", '<% if (item.get("is_unrestricted")) { %>', "<div>", 'This dataset is unrestricted so everybody with the link can access it. Just share <span class="copy-link-to-clipboard"><a href=""a>this page</a></span>.', "</div>", "<% } %>",
+
+                // TABLE START
+                '<div class="dataset_table">', '<table class="grid table table-striped table-sm">', "<tr>", '<th class="dataset-first-column" scope="row" id="id_row" data-id="<%= _.escape(item.get("ldda_id")) %>">Name</th>', '<td><%= _.escape(item.get("name")) %></td>', "</tr>", '<% if (item.get("file_ext")) { %>', "<tr>", '<th scope="row">Data type</th>', '<td><%= _.escape(item.get("file_ext")) %></td>', "</tr>", "<% } %>", '<% if (item.get("genome_build")) { %>', "<tr>", '<th scope="row">Genome build</th>', '<td><%= _.escape(item.get("genome_build")) %></td>', "</tr>", "<% } %>", '<% if (item.get("file_size")) { %>', "<tr>", '<th scope="row">Size</th>', '<td><%= _.escape(item.get("file_size")) %></td>', "</tr>", "<% } %>", '<% if (item.get("date_uploaded")) { %>', "<tr>", '<th scope="row">Date uploaded (UTC)</th>', '<td><%= _.escape(item.get("date_uploaded")) %></td>', "</tr>", "<% } %>", '<% if (item.get("uploaded_by")) { %>', "<tr>", '<th scope="row">Uploaded by</th>', '<td><%= _.escape(item.get("uploaded_by")) %></td>', "</tr>", "<% } %>", '<% if (item.get("metadata_data_lines")) { %>', "<tr>", '<th scope="row">Data Lines</th>', '<td scope="row"><%= _.escape(item.get("metadata_data_lines")) %></td>', "</tr>", "<% } %>", '<% if (item.get("metadata_comment_lines")) { %>', "<tr>", '<th scope="row">Comment Lines</th>', '<td scope="row"><%= _.escape(item.get("metadata_comment_lines")) %></td>', "</tr>", "<% } %>", '<% if (item.get("metadata_columns")) { %>', "<tr>", '<th scope="row">Number of Columns</th>', '<td scope="row"><%= _.escape(item.get("metadata_columns")) %></td>', "</tr>", "<% } %>", '<% if (item.get("metadata_column_types")) { %>', "<tr>", '<th scope="row">Column Types</th>', '<td scope="row"><%= _.escape(item.get("metadata_column_types")) %></td>', "</tr>", "<% } %>", '<% if (item.get("message")) { %>', "<tr>", '<th scope="row">Message</th>', '<td scope="row"><%= _.escape(item.get("message")) %></td>', "</tr>", "<% } %>", '<% if (item.get("misc_blurb")) { %>', "<tr>", '<th scope="row">Misc. blurb</th>', '<td scope="row"><%= _.escape(item.get("misc_blurb")) %></td>', "</tr>", "<% } %>", '<% if (item.get("misc_info")) { %>', "<tr>", '<th scope="row">Misc. info</th>', '<td scope="row"><%= _.escape(item.get("misc_info")) %></td>', "</tr>", "<% } %>", '<% if (item.get("tags")) { %>', "<tr>", '<th scope="row">Tags</th>', '<td scope="row"><%= _.escape(item.get("tags")) %></td>', "</tr>", "<% } %>", '<% if ( item.get("uuid") !== "ok" ) { %>', "<tr>", '<th scope="row">UUID</th>', '<td scope="row"><%= _.escape(item.get("uuid")) %></td>', "</tr>", "<% } %>", '<% if ( item.get("state") !== "ok" ) { %>', "<tr>", '<th scope="row">State</th>', '<td scope="row"><%= _.escape(item.get("state")) %></td>', "</tr>", "<% } %>", "</table>", '<% if (item.get("job_stderr")) { %>', "<h4>Job Standard Error</h4>", '<pre class="code">', '<%= _.escape(item.get("job_stderr")) %>', "</pre>", "<% } %>", '<% if (item.get("job_stdout")) { %>', "<h4>Job Standard Output</h4>", '<pre class="code">', '<%= _.escape(item.get("job_stdout")) %>', "</pre>", "<% } %>", "<div>", '<pre class="peek">', "</pre>", "</div>", '<% if (item.get("has_versions")) { %>', "<div>", "<h3>Expired versions:</h3>", "<ul>", '<% _.each(item.get("expired_versions"), function(version) { %>', '<li><a title="See details of this version" href="#folders/<%- item.get("folder_id") %>/datasets/<%- item.id %>/versions/<%- version[0] %>"><%- version[1] %></a></li>', "<% }) %>", "<ul>", "</div>", "<% } %>",
+                // TABLE END
+                "</div>",
+                // CONTAINER END
+                "</div>"
+            ].join(""));
+        },
+
+        templateVersion: function templateVersion() {
+            return _.template([
+                // CONTAINER START
+                '<div class="library_style_container">', '<div class="d-flex mb-2">', '<a href="#folders/<%- item.get("folder_id") %>/datasets/<%- item.id %>">', '<button data-toggle="tooltip" data-placement="top" title="Go to latest dataset" class="btn btn-secondary toolbar-item mr-1" type="button">', '<span class="fa fa-caret-left fa-lg"></span>', "&nbsp;Latest dataset", "</button>", "<a>", "</div>",
+
+                // BREADCRUMBS
+                '<ol class="breadcrumb">', '<li class="breadcrumb-item"><a title="Return to the list of libraries" href="#">Libraries</a></li>', '<% _.each(item.get("full_path"), function(path_item) { %>', "<% if (path_item[0] != item.id) { %>", '<li class="breadcrumb-item"><a title="Return to this folder" href="#/folders/<%- path_item[0] %>"><%- path_item[1] %></a> </li> ', "<% } else { %>", '<li class="breadcrumb-item active"><span title="You are here"><%- path_item[1] %></span></li>', "<% } %>", "<% }); %>", "</ol>", '<div class="alert alert-warning">This is an expired version of the library dataset: <%= _.escape(item.get("name")) %></div>',
+                // DATASET START
+                '<div class="dataset_table">', '<table class="grid table table-striped table-sm">', "<tr>", '<th scope="row" id="id_row" data-id="<%= _.escape(ldda.id) %>">Name</th>', '<td><%= _.escape(ldda.get("name")) %></td>', "</tr>", '<% if (ldda.get("file_ext")) { %>', "<tr>", '<th scope="row">Data type</th>', '<td><%= _.escape(ldda.get("file_ext")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("genome_build")) { %>', "<tr>", '<th scope="row">Genome build</th>', '<td><%= _.escape(ldda.get("genome_build")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("file_size")) { %>', "<tr>", '<th scope="row">Size</th>', '<td><%= _.escape(ldda.get("file_size")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("date_uploaded")) { %>', "<tr>", '<th scope="row">Date uploaded (UTC)</th>', '<td><%= _.escape(ldda.get("date_uploaded")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("uploaded_by")) { %>', "<tr>", '<th scope="row">Uploaded by</th>', '<td><%= _.escape(ldda.get("uploaded_by")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("metadata_data_lines")) { %>', "<tr>", '<th scope="row">Data Lines</th>', '<td scope="row"><%= _.escape(ldda.get("metadata_data_lines")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("metadata_comment_lines")) { %>', "<tr>", '<th scope="row">Comment Lines</th>', '<td scope="row"><%= _.escape(ldda.get("metadata_comment_lines")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("metadata_columns")) { %>', "<tr>", '<th scope="row">Number of Columns</th>', '<td scope="row"><%= _.escape(ldda.get("metadata_columns")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("metadata_column_types")) { %>', "<tr>", '<th scope="row">Column Types</th>', '<td scope="row"><%= _.escape(ldda.get("metadata_column_types")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("message")) { %>', "<tr>", '<th scope="row">Message</th>', '<td scope="row"><%= _.escape(ldda.get("message")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("misc_blurb")) { %>', "<tr>", '<th scope="row">Miscellaneous blurb</th>', '<td scope="row"><%= _.escape(ldda.get("misc_blurb")) %></td>', "</tr>", "<% } %>", '<% if (ldda.get("misc_info")) { %>', "<tr>", '<th scope="row">Miscellaneous information</th>', '<td scope="row"><%= _.escape(ldda.get("misc_info")) %></td>', "</tr>", "<% } %>", '<% if (item.get("tags")) { %>', "<tr>", '<th scope="row">Tags</th>', '<td scope="row"><%= _.escape(item.get("tags")) %></td>', "</tr>", "<% } %>", "</table>", "<div>", '<pre class="peek">', "</pre>", "</div>",
+                // DATASET END
+                "</div>",
+                // CONTAINER END
+                "</div>"
+            ].join(""));
+        },
+
+        templateModifyDataset: function templateModifyDataset() {
+            return _.template([
+                // CONTAINER START
+                '<div class="library_style_container">',
+
+                // BREADCRUMBS
+                '<ol class="breadcrumb">', '<li class="breadcrumb-item"><a title="Return to the list of libraries" href="#">Libraries</a></li>', '<% _.each(item.get("full_path"), function(path_item) { %>', "<% if (path_item[0] != item.id) { %>", '<li class="breadcrumb-item"><a title="Return to this folder" href="#/folders/<%- path_item[0] %>"><%- path_item[1] %></a> </li> ', "<% } else { %>", '<li class="breadcrumb-item active"><span title="You are here"><%- path_item[1] %></span></li>', "<% } %>", "<% }); %>", "</ol>", '<div class="dataset_table">', '<table class="grid table table-striped table-sm">', "<tr>", '<th class="dataset-first-column" scope="row" id="id_row" data-id="<%= _.escape(item.get("ldda_id")) %>">Name</th>', '<td><input class="input_dataset_name form-control" type="text" placeholder="name" value="<%= _.escape(item.get("name")) %>"></td>', "</tr>", "<tr>", '<th scope="row">Data type</th>', "<td>", '<span id="dataset_extension_select" class="dataset-extension-select" />', "</td>", "</tr>", "<tr>", '<th scope="row">Genome build</th>', "<td>", '<span id="dataset_genome_select" class="dataset-genome-select" />', "</td>", "</tr>", "<tr>", '<th scope="row">Size</th>', '<td><%= _.escape(item.get("file_size")) %></td>', "</tr>", "<tr>", '<th scope="row">Date uploaded (UTC)</th>', '<td><%= _.escape(item.get("date_uploaded")) %></td>', "</tr>", "<tr>", '<th scope="row">Uploaded by</th>', '<td><%= _.escape(item.get("uploaded_by")) %></td>', "</tr>", '<tr scope="row">', '<th scope="row">Data Lines</th>', '<td scope="row"><%= _.escape(item.get("metadata_data_lines")) %></td>', "</tr>", '<th scope="row">Comment Lines</th>', '<% if (item.get("metadata_comment_lines") === "") { %>', '<td scope="row"><%= _.escape(item.get("metadata_comment_lines")) %></td>', "<% } else { %>", '<td scope="row">unknown</td>', "<% } %>", "</tr>", "<tr>", '<th scope="row">Number of Columns</th>', '<td scope="row"><%= _.escape(item.get("metadata_columns")) %></td>', "</tr>", "<tr>", '<th scope="row">Column Types</th>', '<td scope="row"><%= _.escape(item.get("metadata_column_types")) %></td>', "</tr>", "<tr>", '<th scope="row">Message</th>', '<td scope="row"><input class="input_dataset_message form-control" type="text" placeholder="message" value="<%= _.escape(item.get("message")) %>"></td>', "</tr>", "<tr>", '<th scope="row">Misc. blurb</th>', '<td scope="row"><%= _.escape(item.get("misc_blurb")) %></td>', "</tr>", "<tr>", '<th scope="row">Misc. information</th>', '<td><input class="input_dataset_misc_info form-control" type="text" placeholder="info" value="<%= _.escape(item.get("misc_info")) %>"></td>', "</tr>",
+                //TODO: add functionality to modify tags here
+                '<% if (item.get("tags")) { %>', "<tr>", '<th scope="row">Tags</th>', '<td scope="row"><%= _.escape(item.get("tags")) %></td>', "</tr>", "<% } %>", "</table>", "<div>", '<pre class="peek">', "</pre>", "</div>", "</div>", '<div class="d-flex">', '<button data-toggle="tooltip" data-placement="top" title="Cancel modifications" class="btn btn-secondary toolbtn_cancel_modifications toolbar-item mr-1" type="button">', '<span class="fa fa-times"></span>', "&nbsp;Cancel", "</button>", '<button data-toggle="tooltip" data-placement="top" title="Save modifications" class="btn btn-secondary toolbtn_save_modifications toolbar-item mr-1" type="button">', '<span class="fa fa-floppy-o"></span>', "&nbsp;Save", "</button>", "</div>",
+
+                // CONTAINER END
+                "</div>"
+            ].join(""));
+        },
+
+        templateDatasetPermissions: function templateDatasetPermissions() {
+            return _.template([
+                // CONTAINER START
+                '<div class="library_style_container">', '<div class="d-flex mb-2">', '<a href="#folders/<%- item.get("folder_id") %>/datasets/<%- item.id %>">', '<button data-toggle="tooltip" data-placement="top" title="Go back to dataset" class="btn btn-secondary toolbar-item mr-1" type="button">', '<span class="fa fa-file-o"></span>', "&nbsp;Dataset Details", "</button>", "<a>", "</div>",
+
+                // BREADCRUMBS
+                '<ol class="breadcrumb">', '<li class="breadcrumb-item"><a title="Return to the list of libraries" href="#">Libraries</a></li>', '<% _.each(item.get("full_path"), function(path_item) { %>', "<% if (path_item[0] != item.id) { %>", '<li class="breadcrumb-item"><a title="Return to this folder" href="#/folders/<%- path_item[0] %>"><%- path_item[1] %></a> </li> ', "<% } else { %>", '<li class="breadcrumb-item active"><span title="You are here"><%- path_item[1] %></span></li>', "<% } %>", "<% }); %>", "</ol>", '<h1>Dataset: <%= _.escape(item.get("name")) %></h1>', '<div class="alert alert-warning">', "<% if (is_admin) { %>", "You are logged in as an <strong>administrator</strong> therefore you can manage any dataset on this Galaxy instance. Please make sure you understand the consequences.", "<% } else { %>", "You can assign any number of roles to any of the following permission types. However please read carefully the implications of such actions.", "<% } %>", "</div>", '<div class="dataset_table">', "<h2>Library-related permissions</h2>", "<h4>Roles that can modify the library item</h4>", '<div id="modify_perm" class="modify_perm roles-selection"></div>', '<div class="alert alert-info roles-selection">User with <strong>any</strong> of these roles can modify name, metadata, and other information about this library item.</div>', "<hr/>", "<h2>Dataset-related permissions</h2>", '<div class="alert alert-warning">Changes made below will affect <strong>every</strong> library item that was created from this dataset and also every history this dataset is part of.</div>', '<% if (!item.get("is_unrestricted")) { %>', '<p>You can <span class="remove-restrictions"><a href="">remove all access restrictions</a></span> on this dataset.</p>', "<% } else { %>", '<p>You can <span class="make-private"><a href="">make this dataset private</a></span> to you.</p>', "<% } %>", "<h4>Roles that can access the dataset</h4>", '<div id="access_perm" class="access_perm roles-selection"></div>', '<div class="alert alert-info roles-selection">', "User has to have <strong>all these roles</strong> in order to access this dataset.", " Users without access permission <strong>cannot</strong> have other permissions on this dataset.", " If there are no access roles set on the dataset it is considered <strong>unrestricted</strong>.", "</div>", "<h4>Roles that can manage permissions on the dataset</h4>", '<div id="manage_perm" class="manage_perm roles-selection"></div>', '<div class="alert alert-info roles-selection">', "User with <strong>any</strong> of these roles can manage permissions of this dataset. If you remove yourself you will lose the ability manage this dataset unless you are an admin.", "</div>", '<button data-toggle="tooltip" data-placement="top" title="Save modifications made on this page" class="btn btn-secondary toolbtn_save_permissions  type="button">', '<span class="fa fa-floppy-o"></span>', "&nbsp;Save", "</button>", "</div>",
+                // CONTAINER END
+                "</div>"
+            ].join(""));
+        },
+
+        templateBulkImportInModal: function templateBulkImportInModal() {
+            return _.template(["<div>", '<div class="library-modal-item">', "Select history: ", '<select id="dataset_import_single" name="dataset_import_single" style="width:50%; margin-bottom: 1em; " autofocus>', "<% _.each(histories, function(history) { %>", '<option value="<%= _.escape(history.get("id")) %>"><%= _.escape(history.get("name")) %></option>', "<% }); %>", "</select>", "</div>", '<div class="library-modal-item">', "or create new: ", '<input type="text" name="history_name" value="" placeholder="name of the new history" style="width:50%;">', "</input>", "</div>", "</div>"].join(""));
+        }
+    });
+
+    exports.default = {
+        LibraryDatasetView: LibraryDatasetView
+    };
+});
 //# sourceMappingURL=../../../maps/mvc/library/library-dataset-view.js.map

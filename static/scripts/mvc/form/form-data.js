@@ -1,2 +1,259 @@
-define(["utils/utils"],function(){return Backbone.Model.extend({initialize:function(a){this.app=a},checksum:function(){var a="";for(var b in this.app.field_list){var c=this.app.field_list[b];a+=JSON.stringify(c.value&&c.value())}return a},create:function(){function a(a,b,d){c.map_dict[a]=b,e[a]=d}function b(d,e){for(var f in e){var g=e[f];if(g.input){var h=g.input,i=d;switch(""!=d&&(i+="|"),i+=h.name,h.type){case"repeat":var j="section-",k=[],l=null;for(var m in g){var n=m.indexOf(j);-1!=n&&(n+=j.length,k.push(parseInt(m.substr(n))),l||(l=m.substr(0,n)))}k.sort(function(a,b){return a-b});var f=0;for(var o in k)b(i+"_"+f++,g[l+k[o]]);break;case"conditional":var p=c.app.field_list[h.id].value();a(i+"|"+h.test_param.name,h.id,p);var q=c.matchCase(h,p);-1!=q&&b(i,e[h.id+"-section-"+q]);break;case"section":b(i,g);break;default:var r=c.app.field_list[h.id];if(r&&r.value){var p=r.value();if((void 0===h.ignore||h.ignore!=p)&&(a(i,h.id,p),h.payload))for(var s in h.payload)a(s,h.id,h.payload[s])}}}}}var c=this,d={};this._iterate(this.app.section.$el,d);var e={};return this.map_dict={},b("",d),e},match:function(a){return this.map_dict&&this.map_dict[a]},matchCase:function(a,b){"boolean"==a.test_param.type&&(b="true"==b?a.test_param.truevalue||"true":a.test_param.falsevalue||"false");for(var c in a.cases)if(a.cases[c].value==b)return c;return-1},matchModel:function(a,b){function c(a,d){for(var f in d){var g=d[f],h=g.name;switch(""!=a&&(h=a+"|"+h),g.type){case"repeat":for(var i in g.cache)c(h+"_"+i,g.cache[i]);break;case"conditional":var j=g.test_param&&g.test_param.value,k=e.matchCase(g,j);-1!=k&&c(h,g.cases[k].inputs);break;case"section":c(h,g.inputs);break;default:var l=e.map_dict[h];l&&b(l,g)}}}var d={},e=this;return c("",a.inputs),d},matchResponse:function(a){function b(a,e){if("string"==typeof e){var f=d.map_dict[a];f&&(c[f]=e)}else for(var g in e){var h=g;if(""!==a){var i="|";e instanceof Array&&(i="_"),h=a+i+h}b(h,e[g])}}var c={},d=this;return b("",a),c},_iterate:function(a,b){var c=this,d=$(a).children();d.each(function(){var a=this,d=$(a).attr("id");if($(a).hasClass("section-row")){b[d]={};var e=c.app.input_list[d];e&&(b[d]={input:e}),c._iterate(a,b[d])}else c._iterate(a,b)})}})});
+define("mvc/form/form-data", ["exports"], function(exports) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+    /* This class maps the form dom to an api compatible javascript dictionary. */
+    var Manager = exports.Manager = Backbone.Model.extend({
+        initialize: function initialize(app) {
+            this.app = app;
+        },
+
+        /** Creates a checksum. */
+        checksum: function checksum() {
+            var sum = "";
+            var self = this;
+            this.app.section.$el.find(".section-row").each(function() {
+                var id = $(this).attr("id");
+                var field = self.app.field_list[id];
+                if (field) {
+                    sum += id + ":" + JSON.stringify(field.value && field.value()) + ":" + field.collapsed + ";";
+                }
+            });
+            return sum;
+        },
+
+        /** Convert dom into a dictionary of flat id/value pairs used e.g. on job submission. */
+        create: function create() {
+            var self = this;
+
+            // get raw dictionary from dom
+            var dict = {};
+            this._iterate(this.app.section.$el, dict);
+
+            // add to result dictionary, label elements
+            var result_dict = {};
+            this.flat_dict = {};
+
+            function add(flat_id, input_id, input_value) {
+                self.flat_dict[flat_id] = input_id;
+                result_dict[flat_id] = input_value;
+                if (self.app.element_list[input_id]) {
+                    self.app.element_list[input_id].$el.attr("tour_id", flat_id);
+                }
+            }
+            // converter between raw dictionary and job dictionary
+            function convert(identifier, head) {
+                for (var index in head) {
+                    var node = head[index];
+                    if (node.input) {
+                        var input = node.input;
+                        var flat_id = identifier;
+                        if (identifier !== "") {
+                            flat_id += "|";
+                        }
+                        flat_id += input.name;
+                        switch (input.type) {
+                            case "repeat":
+                                var section_label = "section-";
+                                var block_indices = [];
+                                var block_prefix = null;
+                                for (var block_label in node) {
+                                    var pos = block_label.indexOf(section_label);
+                                    if (pos != -1) {
+                                        pos += section_label.length;
+                                        block_indices.push(parseInt(block_label.substr(pos)));
+                                        if (!block_prefix) {
+                                            block_prefix = block_label.substr(0, pos);
+                                        }
+                                    }
+                                }
+                                block_indices.sort(function(a, b) {
+                                    return a - b;
+                                });
+                                index = 0;
+                                for (var i in block_indices) {
+                                    convert(flat_id + "_" + index++, node[block_prefix + block_indices[i]]);
+                                }
+                                break;
+                            case "conditional":
+                                var value = self.app.field_list[input.id].value();
+                                add(flat_id + "|" + input.test_param.name, input.id, value);
+                                var selectedCase = _matchCase(input, value);
+                                if (selectedCase != -1) {
+                                    convert(flat_id, head[input.id + "-section-" + selectedCase]);
+                                }
+                                break;
+                            case "section":
+                                convert(!input.flat && flat_id || "", node);
+                                break;
+                            default:
+                                var field = self.app.field_list[input.id];
+                                if (field && field.value) {
+                                    value = field.value();
+                                    if (input.ignore === undefined || input.ignore != value) {
+                                        if (field.collapsed && input.collapsible_value) {
+                                            value = input.collapsible_value;
+                                        }
+                                        add(flat_id, input.id, value);
+                                        if (input.payload) {
+                                            for (var p_id in input.payload) {
+                                                add(p_id, input.id, input.payload[p_id]);
+                                            }
+                                        }
+                                    }
+                                }
+                        }
+                    }
+                }
+            }
+            convert("", dict);
+            return result_dict;
+        },
+
+        /** Matches flat ids to corresponding input element
+         * @param{string} flat_id - Flat input id to be looked up.
+         */
+        match: function match(flat_id) {
+            return this.flat_dict && this.flat_dict[flat_id];
+        },
+
+        /** Match conditional values to selected cases
+         */
+        matchCase: function matchCase(input, value) {
+            return _matchCase(input, value);
+        },
+
+        /** Matches a new tool model to the current input elements e.g. used to update dynamic options
+         */
+        matchModel: function matchModel(model, callback) {
+            var self = this;
+            visitInputs(model.inputs, function(input, name) {
+                if (self.flat_dict[name]) {
+                    callback(input, self.flat_dict[name]);
+                }
+            });
+        },
+
+        /** Matches identifier from api response to input elements e.g. used to display validation errors
+         */
+        matchResponse: function matchResponse(response) {
+            var result = {};
+            var self = this;
+
+            function search(id, head) {
+                if (typeof head === "string") {
+                    var input_id = self.flat_dict[id];
+                    if (input_id) {
+                        result[input_id] = head;
+                    }
+                } else {
+                    for (var i in head) {
+                        var new_id = i;
+                        if (id !== "") {
+                            var separator = "|";
+                            if (head instanceof Array) {
+                                separator = "_";
+                            }
+                            new_id = id + separator + new_id;
+                        }
+                        search(new_id, head[i]);
+                    }
+                }
+            }
+            search("", response);
+            return result;
+        },
+
+        /** Map dom tree to dictionary tree with input elements.
+         */
+        _iterate: function _iterate(parent, dict) {
+            var self = this;
+            var children = $(parent).children();
+            children.each(function() {
+                var child = this;
+                var id = $(child).attr("id");
+                if ($(child).hasClass("section-row")) {
+                    var input = self.app.input_list[id];
+                    dict[id] = input && {
+                        input: input
+                    } || {};
+                    self._iterate(child, dict[id]);
+                } else {
+                    self._iterate(child, dict);
+                }
+            });
+        }
+    });
+
+    /** Match conditional values to selected cases
+     * @param{dict}   input     - Definition of conditional input parameter
+     * @param{dict}   value     - Current value
+     */
+    var _matchCase = function _matchCase(input, value) {
+        if (input.test_param.type == "boolean") {
+            if (value == "true") {
+                value = input.test_param.truevalue || "true";
+            } else {
+                value = input.test_param.falsevalue || "false";
+            }
+        }
+        for (var i in input.cases) {
+            if (input.cases[i].value == value) {
+                return i;
+            }
+        }
+        return -1;
+    };
+
+    /** Visits tool inputs
+     * @param{dict}   inputs    - Nested dictionary of input elements
+     * @param{dict}   callback  - Called with the mapped dictionary object and corresponding model node
+     */
+    exports.matchCase = _matchCase;
+    var visitInputs = exports.visitInputs = function visitInputs(inputs, callback, prefix, context) {
+        context = $.extend({}, context);
+        _.each(inputs, function(input) {
+            if (input && input.type && input.name) {
+                context[input.name] = input;
+            }
+        });
+        for (var key in inputs) {
+            var node = inputs[key];
+            node.name = node.name || key;
+            var name = prefix ? prefix + "|" + node.name : node.name;
+            switch (node.type) {
+                case "repeat":
+                    _.each(node.cache, function(cache, j) {
+                        visitInputs(cache, callback, name + "_" + j, context);
+                    });
+                    break;
+                case "conditional":
+                    if (node.test_param) {
+                        callback(node.test_param, name + "|" + node.test_param.name, context);
+                        var selectedCase = _matchCase(node, node.test_param.value);
+                        if (selectedCase != -1) {
+                            visitInputs(node.cases[selectedCase].inputs, callback, name, context);
+                        } else {
+                            Galaxy.emit.debug("form-data::visitInputs() - Invalid case for " + name + ".");
+                        }
+                    } else {
+                        Galaxy.emit.debug("form-data::visitInputs() - Conditional test parameter missing for " + name + ".");
+                    }
+                    break;
+                case "section":
+                    visitInputs(node.inputs, callback, name, context);
+                    break;
+                default:
+                    callback(node, name, context);
+            }
+        }
+    };
+
+    exports.default = {
+        Manager: Manager,
+        visitInputs: visitInputs
+    };
+});
 //# sourceMappingURL=../../../maps/mvc/form/form-data.js.map

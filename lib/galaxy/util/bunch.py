@@ -1,12 +1,16 @@
-class Bunch( object ):
+class Bunch(object):
     """
     http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/52308
 
     Often we want to just collect a bunch of stuff together, naming each item of
     the bunch; a dictionary's OK for that, but a small do-nothing class is even handier, and prettier to use.
     """
+
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
+
+    def dict(self):
+        return self.__dict__
 
     def get(self, key, default=None):
         return self.__dict__.get(key, default)

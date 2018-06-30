@@ -1,2 +1,983 @@
-define(["mvc/history/hdca-model","mvc/dataset/states","mvc/base-mvc","mvc/ui/ui-modal","utils/natural-sort","utils/localization","ui/hoverhighlight"],function(a,b,c,d,e,f){function g(a){var b=a.toJSON(),c=k(b,{creationFn:function(b,c){return b=b.map(function(a){return{id:a.id,name:a.name,src:"dataset"===a.history_content_type?"hda":"hdca"}}),a.createHDCA(b,"list",c)}});return c}var h=Backbone.View.extend(c.LoggableMixin).extend({tagName:"li",className:"collection-element",initialize:function(a){this.element=a.element||{},this.selected=a.selected||!1},render:function(){return this.$el.attr("data-element-id",this.element.id).attr("draggable",!0).html(this.template({element:this.element})),this.selected&&this.$el.addClass("selected"),this},template:_.template(['<a class="name" title="',f("Click to rename"),'" href="javascript:void(0)">',"<%= element.name %>","</a>",'<button class="discard btn btn-sm" title="',f("Remove this dataset from the list"),'">',f("Discard"),"</button>"].join("")),select:function(a){this.$el.toggleClass("selected",a),this.trigger("select",{source:this,selected:this.$el.hasClass("selected")})},discard:function(){var a=this,b=this.$el.parent().width();this.$el.animate({"margin-right":b},"fast",function(){a.trigger("discard",{source:a}),a.destroy()})},destroy:function(){this.off(),this.$el.remove()},events:{click:"_click","click .name":"_clickName","click .discard":"_clickDiscard",dragstart:"_dragstart",dragend:"_dragend",dragover:"_sendToParent",drop:"_sendToParent"},_click:function(a){a.stopPropagation(),this.select(a)},_clickName:function(a){a.stopPropagation(),a.preventDefault();var b=([f("Enter a new name for the element"),":\n(",f("Note that changing the name here will not rename the dataset"),")"].join(""),prompt(f("Enter a new name for the element")+":",this.element.name));b&&(this.element.name=b,this.render())},_clickDiscard:function(a){a.stopPropagation(),this.discard()},_dragstart:function(a){a.originalEvent&&(a=a.originalEvent),a.dataTransfer.effectAllowed="move",a.dataTransfer.setData("text/plain",JSON.stringify(this.element)),this.$el.addClass("dragging"),this.$el.parent().trigger("collection-element.dragstart",[this])},_dragend:function(){this.$el.removeClass("dragging"),this.$el.parent().trigger("collection-element.dragend",[this])},_sendToParent:function(a){this.$el.parent().trigger(a)},toString:function(){return"DatasetCollectionElementView()"}}),i=Backbone.View.extend(c.LoggableMixin).extend({elementViewClass:h,collectionClass:a.HistoryListDatasetCollection,className:"list-collection-creator collection-creator flex-row-container",minElements:1,defaultAttributes:{creationFn:function(){throw new TypeError("no creation fn for creator")},oncreate:function(){},oncancel:function(){},autoscrollDist:24,highlightClr:"rgba( 64, 255, 255, 1.0 )"},initialize:function(a){this.metric("ListCollectionCreator.initialize",a);var b=this;_.each(this.defaultAttributes,function(c,d){c=a[d]||c,b[d]=c}),b.initialElements=a.elements||[],this._instanceSetUp(),this._elementsSetUp(),this._setUpBehaviors()},_instanceSetUp:function(){this.selectedIds={},this.$dragging=null,this.blocking=!1},_elementsSetUp:function(){this.invalidElements=[],this.workingElements=[],this.elementViews=[],this.workingElements=this.initialElements.slice(0),this._ensureElementIds(),this._validateElements(),this._mangleDuplicateNames(),this._sortElements()},_ensureElementIds:function(){return this.workingElements.forEach(function(a){a.hasOwnProperty("id")||(a.id=_.uniqueId())}),this.workingElements},_validateElements:function(){var a=this;return a.invalidElements=[],this.workingElements=this.workingElements.filter(function(b){var c=a._isElementInvalid(b);return c&&a.invalidElements.push({element:b,text:c}),!c}),this.workingElements},_isElementInvalid:function(a){return"dataset"!==a.history_content_type?f("is not a dataset"):a.state!==b.OK?f(_.contains(b.NOT_READY_STATES,a.state)?"hasn't finished running yet":"has errored, is paused, or is not accessible"):a.deleted||a.purged?f("has been deleted or purged"):null},_mangleDuplicateNames:function(){var a=900,b=1,c={};this.workingElements.forEach(function(d){for(var e=d.name;c.hasOwnProperty(e);)if(e=d.name+" ("+b+")",b+=1,b>=a)throw new Error("Safety hit in while loop - thats impressive");d.name=e,c[d.name]=!0})},_sortElements:function(){},render:function(a,b){return this.workingElements.length<this.minElements?this._renderInvalid(a,b):(this.$el.empty().html(this.templates.main()),this._renderHeader(a),this._renderMiddle(a),this._renderFooter(a),this._addPluginComponents(),this.$(".collection-name").focus(),this.trigger("rendered",this),this)},_renderInvalid:function(){return this.$el.empty().html(this.templates.invalidInitial({problems:this.invalidElements,elements:this.workingElements})),"function"==typeof this.oncancel&&this.$(".cancel-create.btn").show(),this.trigger("rendered",this),this},_renderHeader:function(){var a=this.$(".header").empty().html(this.templates.header()).find(".help-content").prepend($(this.templates.helpContent()));return this.invalidElements.length&&this._invalidElementsAlert(),a},_renderMiddle:function(a){var b=this.$(".middle").empty().html(this.templates.middle());return this._renderList(a),b},_renderFooter:function(){var a=this.$(".footer").empty().html(this.templates.footer());return"function"==typeof this.oncancel&&this.$(".cancel-create.btn").show(),a},_addPluginComponents:function(){this.$(".help-content i").hoverhighlight(".collection-creator",this.highlightClr)},_invalidElementsAlert:function(){this._showAlert(this.templates.invalidElements({problems:this.invalidElements}),"alert-warning")},_validationWarning:function(a,b){var c="validation-warning";"name"===a&&(a=this.$(".collection-name").add(this.$(".collection-name-prompt")),this.$(".collection-name").focus().select()),b?(a=a||this.$("."+c),a.removeClass(c)):a.addClass(c)},_disableNameAndCreate:function(a){a=_.isUndefined(a)?!0:a,a&&(this.$(".collection-name").prop("disabled",!0),this.$(".create-collection").toggleClass("disabled",!0))},$list:function(){return this.$(".collection-elements")},_renderClearSelected:function(){_.size(this.selectedIds)?this.$(".collection-elements-controls > .clear-selected").show():this.$(".collection-elements-controls > .clear-selected").hide()},_renderList:function(){var a=this,b=jQuery("<div/>"),c=a.$list();_.each(this.elementViews,function(b){b.destroy(),a.removeElementView(b)}),a.workingElements.forEach(function(c){var d=a._createElementView(c);b.append(d.$el)}),a._renderClearSelected(),c.empty().append(b.children()),_.invoke(a.elementViews,"render"),c.height()>c.css("max-height")?c.css("border-width","1px 0px 1px 0px"):c.css("border-width","0px")},_createElementView:function(a){var b=new this.elementViewClass({element:a,selected:_.has(this.selectedIds,a.id)});return this.elementViews.push(b),this._listenToElementView(b),b},_listenToElementView:function(a){var b=this;b.listenTo(a,{select:function(a){var c=a.source.element;a.selected?b.selectedIds[c.id]=!0:delete b.selectedIds[c.id],b.trigger("elements:select",a)},discard:function(a){b.trigger("elements:discard",a)}})},addElementView:function(){},removeElementView:function(a){delete this.selectedIds[a.element.id],this._renderClearSelected(),this.elementViews=_.without(this.elementViews,a),this.stopListening(a)},_renderNoElementsLeft:function(){this._disableNameAndCreate(!0),this.$(".collection-elements").append(this.templates.noElementsLeft())},_elementToJSON:function(a){return a},createList:function(a){if(!this.workingElements.length){var b=f("No valid elements for final list")+". ";return b+='<a class="cancel-create" href="javascript:void(0);">'+f("Cancel")+"</a> ",b+=f("or"),b+=' <a class="reset" href="javascript:void(0);">'+f("start over")+"</a>.",void this._showAlert(b)}var c=this,d=this.workingElements.map(function(a){return c._elementToJSON(a)});return c.blocking=!0,c.creationFn(d,a).always(function(){c.blocking=!1}).fail(function(a,b){c.trigger("error",{xhr:a,status:b,message:f("An error occurred while creating this collection")})}).done(function(a,b,d){c.trigger("collection:created",a,b,d),c.metric("collection:created",a),"function"==typeof c.oncreate&&c.oncreate.call(this,a,b,d)})},_setUpBehaviors:function(){return this.on("error",this._errorHandler),this.once("rendered",function(){this.trigger("rendered:initial",this)}),this.on("elements:select",function(){this._renderClearSelected()}),this.on("elements:discard",function(a){var b=a.source.element;this.removeElementView(a.source),this.workingElements=_.without(this.workingElements,b),this.workingElements.length||this._renderNoElementsLeft()}),this},_errorHandler:function(a){this.error(a);var b=this;if(content=a.message||f("An error occurred"),a.xhr){var c=a.xhr,d=a.message;content+=0===c.readyState&&0===c.status?": "+f("Galaxy could not be reached and may be updating.")+f(" Try again in a few minutes."):c.responseJSON?":<br /><pre>"+JSON.stringify(c.responseJSON)+"</pre>":": "+d}b._showAlert(content,"alert-danger")},events:{"click .more-help":"_clickMoreHelp","click .less-help":"_clickLessHelp","click .main-help":"_toggleHelp","click .header .alert button":"_hideAlert","click .reset":"reset","click .clear-selected":"clearSelectedElements","click .collection-elements":"clearSelectedElements","dragover .collection-elements":"_dragoverElements","drop .collection-elements":"_dropElements","collection-element.dragstart .collection-elements":"_elementDragstart","collection-element.dragend   .collection-elements":"_elementDragend","change .collection-name":"_changeName","keydown .collection-name":"_nameCheckForEnter","click .cancel-create":function(){"function"==typeof this.oncancel&&this.oncancel.call(this)},"click .create-collection":"_clickCreate"},_clickMoreHelp:function(a){a.stopPropagation(),this.$(".main-help").addClass("expanded"),this.$(".more-help").hide()},_clickLessHelp:function(a){a.stopPropagation(),this.$(".main-help").removeClass("expanded"),this.$(".more-help").show()},_toggleHelp:function(a){a.stopPropagation(),this.$(".main-help").toggleClass("expanded"),this.$(".more-help").toggle()},_showAlert:function(a,b){b=b||"alert-danger",this.$(".main-help").hide(),this.$(".header .alert").attr("class","alert alert-dismissable").addClass(b).show().find(".alert-message").html(a)},_hideAlert:function(){this.$(".main-help").show(),this.$(".header .alert").hide()},reset:function(){this._instanceSetUp(),this._elementsSetUp(),this.render()},clearSelectedElements:function(){this.$(".collection-elements .collection-element").removeClass("selected"),this.$(".collection-elements-controls > .clear-selected").hide()},_dragoverElements:function(a){a.preventDefault();var b=this.$list();this._checkForAutoscroll(b,a.originalEvent.clientY);var c=this._getNearestElement(a.originalEvent.clientY);this.$(".element-drop-placeholder").remove();var d=$('<div class="element-drop-placeholder"></div>');c.size()?c.before(d):b.append(d)},_checkForAutoscroll:function(a,b){var c=2,d=a.offset(),e=a.scrollTop(),f=b-d.top,g=d.top+a.outerHeight()-b;f>=0&&f<this.autoscrollDist?a.scrollTop(e-c):g>=0&&g<this.autoscrollDist&&a.scrollTop(e+c)},_getNearestElement:function(a){for(var b=4,c=this.$(".collection-elements li.collection-element").toArray(),d=0;d<c.length;d++){var e=$(c[d]),f=e.offset().top,g=Math.floor(e.outerHeight()/2)+b;if(f+g>a&&a>f-g)return e}return $()},_dropElements:function(a){a.originalEvent&&(a=a.originalEvent),a.preventDefault(),a.dataTransfer.dropEffect="move";var b=this._getNearestElement(a.clientY);return b.size()?this.$dragging.insertBefore(b):this.$dragging.insertAfter(this.$(".collection-elements .collection-element").last()),this._syncOrderToDom(),!1},_syncOrderToDom:function(){var a=this,b=[];this.$(".collection-elements .collection-element").each(function(){var c=$(this).attr("data-element-id"),d=_.findWhere(a.workingElements,{id:c});d?b.push(d):console.error("missing element: ",c)}),this.workingElements=b,this._renderList()},_elementDragstart:function(a,b){b.select(!0),this.$dragging=this.$(".collection-elements .collection-element.selected")},_elementDragend:function(){$(".element-drop-placeholder").remove(),this.$dragging=null},_changeName:function(){this._validationWarning("name",!!this._getName())},_nameCheckForEnter:function(a){13!==a.keyCode||this.blocking||this._clickCreate()},_getName:function(){return _.escape(this.$(".collection-name").val())},_clickCreate:function(){var a=this._getName();a?this.blocking||this.createList(a):this._validationWarning("name")},templates:{main:_.template(['<div class="header flex-row no-flex"></div>','<div class="middle flex-row flex-row-container"></div>','<div class="footer flex-row no-flex"></div>'].join("")),header:_.template(['<div class="main-help well clear">','<a class="more-help" href="javascript:void(0);">',f("More help"),"</a>",'<div class="help-content">','<a class="less-help" href="javascript:void(0);">',f("Less"),"</a>","</div>","</div>",'<div class="alert alert-dismissable">','<button type="button" class="close" data-dismiss="alert" ','title="',f("Close and show more help"),'" aria-hidden="true">&times;</button>','<span class="alert-message"></span>',"</div>"].join("")),middle:_.template(['<div class="collection-elements-controls">','<a class="reset" href="javascript:void(0);" ','title="',f("Undo all reordering and discards"),'">',f("Start over"),"</a>",'<a class="clear-selected" href="javascript:void(0);" ','title="',f("De-select all selected datasets"),'">',f("Clear selected"),"</a>","</div>",'<div class="collection-elements scroll-container flex-row">',"</div>"].join("")),footer:_.template(['<div class="attributes clear">','<div class="clear">','<input class="collection-name form-control pull-right" ','placeholder="',f("Enter a name for your new collection"),'" />','<div class="collection-name-prompt pull-right">',f("Name"),":</div>","</div>","</div>",'<div class="actions clear vertically-spaced">','<div class="other-options pull-left">','<button class="cancel-create btn" tabindex="-1">',f("Cancel"),"</button>",'<div class="create-other btn-group dropup">','<button class="btn btn-default dropdown-toggle" data-toggle="dropdown">',f("Create a different kind of collection"),' <span class="caret"></span>',"</button>",'<ul class="dropdown-menu" role="menu">','<li><a href="#">',f("Create a <i>single</i> pair"),"</a></li>",'<li><a href="#">',f("Create a list of <i>unpaired</i> datasets"),"</a></li>","</ul>","</div>","</div>",'<div class="main-options pull-right">','<button class="create-collection btn btn-primary">',f("Create list"),"</button>","</div>","</div>"].join("")),helpContent:_.template(["<p>",f(["Collections of datasets are permanent, ordered lists of datasets that can be passed to tools and ","workflows in order to have analyses done on each member of the entire group. This interface allows ","you to create a collection and re-order the final collection."].join("")),"</p>","<ul>","<li>",f(["Rename elements in the list by clicking on ",'<i data-target=".collection-element .name">the existing name</i>.'].join("")),"</li>","<li>",f(["Discard elements from the final created list by clicking on the ",'<i data-target=".collection-element .discard">"Discard"</i> button.'].join("")),"</li>","<li>",f(["Reorder the list by clicking and dragging elements. Select multiple elements by clicking on ",'<i data-target=".collection-element">them</i> and you can then move those selected by dragging the ',"entire group. Deselect them by clicking them again or by clicking the ",'the <i data-target=".clear-selected">"Clear selected"</i> link.'].join("")),"</li>","<li>",f(['Click the <i data-target=".reset">"Start over"</i> link to begin again as if you had just opened ',"the interface."].join("")),"</li>","<li>",f(['Click the <i data-target=".cancel-create">"Cancel"</i> button to exit the interface.'].join("")),"</li>","</ul><br />","<p>",f(['Once your collection is complete, enter a <i data-target=".collection-name">name</i> and ','click <i data-target=".create-collection">"Create list"</i>.'].join("")),"</p>"].join("")),invalidElements:_.template([f("The following selections could not be included due to problems:"),"<ul><% _.each( problems, function( problem ){ %>","<li><b><%= problem.element.name %></b>: <%= problem.text %></li>","<% }); %></ul>"].join("")),noElementsLeft:_.template(['<li class="no-elements-left-message">',f("No elements left! "),f("Would you like to "),'<a class="reset" href="javascript:void(0)">',f("start over"),"</a>?","</li>"].join("")),invalidInitial:_.template(['<div class="header flex-row no-flex">','<div class="alert alert-warning" style="display: block">','<span class="alert-message">',"<% if( _.size( problems ) ){ %>",f("The following selections could not be included due to problems"),":","<ul><% _.each( problems, function( problem ){ %>","<li><b><%= problem.element.name %></b>: <%= problem.text %></li>","<% }); %></ul>","<% } else if( _.size( elements ) < 1 ){ %>",f("No datasets were selected"),".","<% } %>","<br />",f("At least one element is needed for the collection"),". ",f("You may need to "),'<a class="cancel-create" href="javascript:void(0)">',f("cancel"),"</a> ",f("and reselect new elements"),".","</span>","</div>","</div>",'<div class="footer flex-row no-flex">','<div class="actions clear vertically-spaced">','<div class="other-options pull-left">','<button class="cancel-create btn" tabindex="-1">',f("Cancel"),"</button>","</div>","</div>","</div>"].join(""))},toString:function(){return"ListCollectionCreator"}}),j=function(a,b,c){var e,g=jQuery.Deferred(),h=Galaxy.modal||new d.View;return b=_.defaults(b||{},{elements:a,oncancel:function(){h.hide(),g.reject("cancelled")},oncreate:function(a,b){h.hide(),g.resolve(b)}}),e=new c(b),h.show({title:b.title||f("Create a collection"),body:e.$el,width:"80%",height:"min-content",closing_events:!0}),e.render(),window._collectionCreator=e,g},k=function(a,b){return b=b||{},b.title=f("Create a collection from a list of datasets"),j(a,b,i)};return{DatasetCollectionElementView:h,ListCollectionCreator:i,collectionCreatorModal:j,listCollectionCreatorModal:k,createListCollection:g}});
+define("mvc/collection/list-collection-creator", ["exports", "mvc/history/hdca-model", "mvc/dataset/states", "mvc/base-mvc", "mvc/collection/base-creator", "mvc/ui/ui-modal", "utils/natural-sort", "utils/localization", "components/RuleCollectionBuilder.vue", "vue", "ui/hoverhighlight"], function(exports, _hdcaModel, _states, _baseMvc, _baseCreator, _uiModal, _naturalSort, _localization, _RuleCollectionBuilder, _vue) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var _hdcaModel2 = _interopRequireDefault(_hdcaModel);
+
+    var _states2 = _interopRequireDefault(_states);
+
+    var _baseMvc2 = _interopRequireDefault(_baseMvc);
+
+    var _baseCreator2 = _interopRequireDefault(_baseCreator);
+
+    var _uiModal2 = _interopRequireDefault(_uiModal);
+
+    var _naturalSort2 = _interopRequireDefault(_naturalSort);
+
+    var _localization2 = _interopRequireDefault(_localization);
+
+    var _RuleCollectionBuilder2 = _interopRequireDefault(_RuleCollectionBuilder);
+
+    var _vue2 = _interopRequireDefault(_vue);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    var logNamespace = "collections";
+
+    /*==============================================================================
+    TODO:
+        use proper Element model and not just json
+        straighten out createFn, collection.createHDCA
+        possibly stop using modals for this
+        It would be neat to do a drag and drop
+    
+    ==============================================================================*/
+    /** A view for both DatasetDCEs and NestedDCDCEs
+     *  (things that implement collection-model:DatasetCollectionElementMixin)
+     */
+    var DatasetCollectionElementView = Backbone.View.extend(_baseMvc2.default.LoggableMixin).extend({
+        _logNamespace: logNamespace,
+
+        //TODO: use proper class (DatasetDCE or NestedDCDCE (or the union of both))
+        tagName: "li",
+        className: "collection-element",
+
+        initialize: function initialize(attributes) {
+            this.element = attributes.element || {};
+            this.selected = attributes.selected || false;
+        },
+
+        render: function render() {
+            this.dragStartHandler = _.bind(this._dragstart, this);
+            this.dragEndHandler = _.bind(this._dragend, this);
+            var handle = this.$el.attr("data-element-id", this.element.id).attr("draggable", true).html(this.template({
+                element: this.element
+            })).get(0);
+            handle.addEventListener("dragstart", this.dragStartHandler, false);
+            handle.addEventListener("dragend", this.dragEndHandler, false);
+            if (this.selected) {
+                this.$el.addClass("selected");
+            }
+            return this;
+        },
+
+        //TODO: lots of unused space in the element - possibly load details and display them horiz.
+        template: _.template(['<a class="name" title="', (0, _localization2.default)("Click to rename"), '" href="javascript:void(0)">', "<%- element.name %>", "</a>", '<button class="discard btn btn-sm" title="', (0, _localization2.default)("Remove this dataset from the list"), '">', (0, _localization2.default)("Discard"), "</button>"].join("")),
+
+        /** select this element and pub */
+        select: function select(toggle) {
+            this.$el.toggleClass("selected", toggle);
+            this.trigger("select", {
+                source: this,
+                selected: this.$el.hasClass("selected")
+            });
+        },
+
+        /** animate the removal of this element and pub */
+        discard: function discard() {
+            var view = this;
+            var parentWidth = this.$el.parent().width();
+            this.$el.animate({
+                "margin-right": parentWidth
+            }, "fast", function() {
+                view.trigger("discard", {
+                    source: view
+                });
+                view.destroy();
+            });
+        },
+
+        /** remove the DOM and any listeners */
+        destroy: function destroy() {
+            this.off();
+            this.$el.remove();
+        },
+
+        events: {
+            click: "_click",
+            "click .name": "_clickName",
+            "click .discard": "_clickDiscard",
+
+            dragover: "_sendToParent",
+            drop: "_sendToParent"
+        },
+
+        /** select when the li is clicked */
+        _click: function _click(ev) {
+            ev.stopPropagation();
+            this.select(ev);
+        },
+
+        /** rename a pair when the name is clicked */
+        _clickName: function _clickName(ev) {
+            ev.stopPropagation();
+            ev.preventDefault();
+
+            var promptString = [(0, _localization2.default)("Enter a new name for the element"), ":\n(", (0, _localization2.default)("Note that changing the name here will not rename the dataset"), ")"].join("");
+
+            var response = prompt((0, _localization2.default)("Enter a new name for the element") + ":", this.element.name);
+
+            if (response) {
+                this.element.name = response;
+                this.render();
+            }
+            //TODO: cancelling with ESC leads to closure of the creator...
+        },
+
+        /** discard when the discard button is clicked */
+        _clickDiscard: function _clickDiscard(ev) {
+            ev.stopPropagation();
+            this.discard();
+        },
+
+        /** dragging pairs for re-ordering */
+        _dragstart: function _dragstart(ev) {
+            if (ev.originalEvent) {
+                ev = ev.originalEvent;
+            }
+            ev.dataTransfer.effectAllowed = "move";
+            ev.dataTransfer.setData("text/plain", JSON.stringify(this.element));
+
+            this.$el.addClass("dragging");
+            this.$el.parent().trigger("collection-element.dragstart", [this]);
+        },
+
+        /** dragging for re-ordering */
+        _dragend: function _dragend(ev) {
+            this.$el.removeClass("dragging");
+            this.$el.parent().trigger("collection-element.dragend", [this]);
+        },
+
+        /** manually bubble up an event to the parent/container */
+        _sendToParent: function _sendToParent(ev) {
+            this.$el.parent().trigger(ev);
+        },
+
+        /** string rep */
+        toString: function toString() {
+            return "DatasetCollectionElementView()";
+        }
+    });
+
+    // ============================================================================
+    /** An interface for building collections.
+     */
+    var ListCollectionCreator = Backbone.View.extend(_baseMvc2.default.LoggableMixin).extend(_baseCreator2.default.CollectionCreatorMixin).extend({
+        _logNamespace: logNamespace,
+
+        /** the class used to display individual elements */
+        elementViewClass: DatasetCollectionElementView,
+        /** the class this creator will create and save */
+        collectionClass: _hdcaModel2.default.HistoryDatasetCollection,
+        className: "list-collection-creator collection-creator flex-row-container",
+
+        /** minimum number of valid elements to start with in order to build a collection of this type */
+        minElements: 1,
+
+        defaultAttributes: {
+            //TODO: remove - use new collectionClass().save()
+            /** takes elements and creates the proper collection - returns a promise */
+            creationFn: function creationFn() {
+                throw new TypeError("no creation fn for creator");
+            },
+            /** fn to call when the collection is created (scoped to this) */
+            oncreate: function oncreate() {},
+            /** fn to call when the cancel button is clicked (scoped to this) - if falsy, no btn is displayed */
+            oncancel: function oncancel() {},
+            /** distance from list edge to begin autoscrolling list */
+            autoscrollDist: 24,
+            /** Color passed to hoverhighlight */
+            highlightClr: "rgba( 64, 255, 255, 1.0 )"
+        },
+
+        footerSettings: {
+            ".hide-originals": "hideOriginals"
+        },
+
+        /** set up initial options, instance vars, behaviors */
+        initialize: function initialize(attributes) {
+            this.metric("ListCollectionCreator.initialize", attributes);
+            var creator = this;
+            _.each(this.defaultAttributes, function(value, key) {
+                value = attributes[key] || value;
+                creator[key] = value;
+            });
+
+            /** unordered, original list - cache to allow reversal */
+            creator.initialElements = attributes.elements || [];
+
+            this._setUpCommonSettings(attributes);
+            this._instanceSetUp();
+            this._elementsSetUp();
+            this._setUpBehaviors();
+        },
+
+        /** set up instance vars */
+        _instanceSetUp: function _instanceSetUp() {
+            /** Ids of elements that have been selected by the user - to preserve over renders */
+            this.selectedIds = {};
+            /** DOM elements currently being dragged */
+            this.$dragging = null;
+            /** Used for blocking UI events during ajax/operations (don't post twice) */
+            this.blocking = false;
+        },
+
+        // ------------------------------------------------------------------------ process raw list
+        /** set up main data */
+        _elementsSetUp: function _elementsSetUp() {
+            //this.debug( '-- _dataSetUp' );
+            /** a list of invalid elements and the reasons they aren't valid */
+            this.invalidElements = [];
+            //TODO: handle fundamental problem of syncing DOM, views, and list here
+            /** data for list in progress */
+            this.workingElements = [];
+            /** views for workingElements */
+            this.elementViews = [];
+
+            // copy initial list, sort, add ids if needed
+            this.workingElements = this.initialElements.slice(0);
+            this._ensureElementIds();
+            this._validateElements();
+            this._mangleDuplicateNames();
+            this._sortElements();
+        },
+
+        /** add ids to dataset objs in initial list if none */
+        _ensureElementIds: function _ensureElementIds() {
+            this.workingElements.forEach(function(element) {
+                if (!element.hasOwnProperty("id")) {
+                    element.id = _.uniqueId();
+                }
+            });
+            return this.workingElements;
+        },
+
+        /** separate working list into valid and invalid elements for this collection */
+        _validateElements: function _validateElements() {
+            var creator = this;
+            var existingNames = {};
+            creator.invalidElements = [];
+
+            this.workingElements = this.workingElements.filter(function(element) {
+                var problem = creator._isElementInvalid(element);
+                if (problem) {
+                    creator.invalidElements.push({
+                        element: element,
+                        text: problem
+                    });
+                }
+                return !problem;
+            });
+            return this.workingElements;
+        },
+
+        /** describe what is wrong with a particular element if anything */
+        _isElementInvalid: function _isElementInvalid(element) {
+            if (element.history_content_type === "dataset_collection") {
+                return (0, _localization2.default)("is a collection, this is not allowed");
+            }
+            var validState = element.state === _states2.default.OK || _.contains(_states2.default.NOT_READY_STATES, element.state);
+            if (!validState) {
+                return (0, _localization2.default)("has errored, is paused, or is not accessible");
+            }
+            if (element.deleted || element.purged) {
+                return (0, _localization2.default)("has been deleted or purged");
+            }
+            return null;
+        },
+
+        /** mangle duplicate names using a mac-like '(counter)' addition to any duplicates */
+        _mangleDuplicateNames: function _mangleDuplicateNames() {
+            var SAFETY = 900;
+            var counter = 1;
+            var existingNames = {};
+            this.workingElements.forEach(function(element) {
+                var currName = element.name;
+                while (existingNames.hasOwnProperty(currName)) {
+                    currName = element.name + " (" + counter + ")";
+                    counter += 1;
+                    if (counter >= SAFETY) {
+                        throw new Error("Safety hit in while loop - thats impressive");
+                    }
+                }
+                element.name = currName;
+                existingNames[element.name] = true;
+            });
+        },
+
+        /** sort a list of elements */
+        _sortElements: function _sortElements(list) {
+            // // currently only natural sort by name
+            // this.workingElements.sort( function( a, b ){ return naturalSort( a.name, b.name ); });
+            // return this.workingElements;
+        },
+
+        // ------------------------------------------------------------------------ rendering
+        // templates : ListCollectionCreator.templates,
+        /** render the entire interface */
+        render: function render(speed, callback) {
+            //this.debug( '-- _render' );
+            if (this.workingElements.length < this.minElements) {
+                return this._renderInvalid(speed, callback);
+            }
+
+            this.$el.empty().html(this.templates.main());
+            this._renderHeader(speed);
+            this._renderMiddle(speed);
+            this._renderFooter(speed);
+            this._addPluginComponents();
+            this.$(".collection-name").focus();
+            this.trigger("rendered", this);
+            return this;
+        },
+
+        /** render a simplified interface aimed at telling the user why they can't move forward */
+        _renderInvalid: function _renderInvalid(speed, callback) {
+            //this.debug( '-- _render' );
+            this.$el.empty().html(this.templates.invalidInitial({
+                problems: this.invalidElements,
+                elements: this.workingElements
+            }));
+            if (typeof this.oncancel === "function") {
+                this.$(".cancel-create.btn").show();
+            }
+            this.trigger("rendered", this);
+            return this;
+        },
+
+        /** render the header section */
+        _renderHeader: function _renderHeader(speed, callback) {
+            var $header = this.$(".header").empty().html(this.templates.header()).find(".help-content").prepend($(this.templates.helpContent()));
+            //TODO: should only show once despite calling _renderHeader again
+            if (this.invalidElements.length) {
+                this._invalidElementsAlert();
+            }
+            return $header;
+        },
+
+        /** render the middle including the elements */
+        _renderMiddle: function _renderMiddle(speed, callback) {
+            var $middle = this.$(".middle").empty().html(this.templates.middle());
+            this._renderList(speed);
+            return $middle;
+        },
+
+        /** add any jQuery/bootstrap/custom plugins to elements rendered */
+        _addPluginComponents: function _addPluginComponents() {
+            this.$(".help-content i").hoverhighlight(".collection-creator", this.highlightClr);
+        },
+
+        /** build and show an alert describing any elements that could not be included due to problems */
+        _invalidElementsAlert: function _invalidElementsAlert() {
+            this._showAlert(this.templates.invalidElements({
+                problems: this.invalidElements
+            }), "alert-warning");
+        },
+
+        _disableNameAndCreate: function _disableNameAndCreate(disable) {
+            disable = !_.isUndefined(disable) ? disable : true;
+            if (disable) {
+                this.$(".collection-name").prop("disabled", true);
+                this.$(".create-collection").toggleClass("disabled", true);
+                // } else {
+                //     this.$( '.collection-name' ).prop( 'disabled', false );
+                //     this.$( '.create-collection' ).removeClass( 'disable' );
+            }
+        },
+
+        // ------------------------------------------------------------------------ rendering elements
+        /** conv. to the main list display DOM */
+        $list: function $list() {
+            return this.$(".collection-elements");
+        },
+
+        /** show or hide the clear selected control based on the num of selected elements */
+        _renderClearSelected: function _renderClearSelected() {
+            if (_.size(this.selectedIds)) {
+                this.$(".collection-elements-controls > .clear-selected").show();
+            } else {
+                this.$(".collection-elements-controls > .clear-selected").hide();
+            }
+        },
+
+        /** render the elements in order (or a warning if no elements found) */
+        _renderList: function _renderList(speed, callback) {
+            //this.debug( '-- _renderList' );
+            var creator = this;
+
+            var $tmp = jQuery("<div/>");
+            var $list = creator.$list();
+
+            _.each(this.elementViews, function(view) {
+                view.destroy();
+                creator.removeElementView(view);
+            });
+
+            // if( !this.workingElements.length ){
+            //     this._renderNoValidElements();
+            //     return;
+            // }
+
+            creator.workingElements.forEach(function(element) {
+                var elementView = creator._createElementView(element);
+                $tmp.append(elementView.$el);
+            });
+
+            creator._renderClearSelected();
+            $list.empty().append($tmp.children());
+            _.invoke(creator.elementViews, "render");
+
+            if ($list.height() > $list.css("max-height")) {
+                $list.css("border-width", "1px 0px 1px 0px");
+            } else {
+                $list.css("border-width", "0px");
+            }
+        },
+
+        /** create an element view, cache in elementViews, set up listeners, and return */
+        _createElementView: function _createElementView(element) {
+            var elementView = new this.elementViewClass({
+                //TODO: use non-generic class or not all
+                // model : COLLECTION.DatasetDCE( element )
+                element: element,
+                selected: _.has(this.selectedIds, element.id)
+            });
+            this.elementViews.push(elementView);
+            this._listenToElementView(elementView);
+            return elementView;
+        },
+
+        /** listen to any element events */
+        _listenToElementView: function _listenToElementView(view) {
+            var creator = this;
+            creator.listenTo(view, {
+                select: function select(data) {
+                    var element = data.source.element;
+                    if (data.selected) {
+                        creator.selectedIds[element.id] = true;
+                    } else {
+                        delete creator.selectedIds[element.id];
+                    }
+                    creator.trigger("elements:select", data);
+                },
+                discard: function discard(data) {
+                    creator.trigger("elements:discard", data);
+                }
+            });
+        },
+
+        /** add a new element view based on the json in element */
+        addElementView: function addElementView(element) {
+            //TODO: workingElements is sorted, add element in appropo index
+            // add element, sort elements, find element index
+            // var view = this._createElementView( element );
+            // return view;
+        },
+
+        /** stop listening to view and remove from caches */
+        removeElementView: function removeElementView(view) {
+            delete this.selectedIds[view.element.id];
+            this._renderClearSelected();
+
+            this.elementViews = _.without(this.elementViews, view);
+            this.stopListening(view);
+        },
+
+        /** render a message in the list that no elements remain to create a collection */
+        _renderNoElementsLeft: function _renderNoElementsLeft() {
+            this._disableNameAndCreate(true);
+            this.$(".collection-elements").append(this.templates.noElementsLeft());
+        },
+
+        // /** render a message in the list that no valid elements were found to create a collection */
+        // _renderNoValidElements : function(){
+        //     this._disableNameAndCreate( true );
+        //     this.$( '.collection-elements' ).append( this.templates.noValidElements() );
+        // },
+
+        // ------------------------------------------------------------------------ API
+        /** convert element into JSON compatible with the collections API */
+        _elementToJSON: function _elementToJSON(element) {
+            // return element.toJSON();
+            return element;
+        },
+
+        /** create the collection via the API
+         *  @returns {jQuery.xhr Object} the jquery ajax request
+         */
+        createList: function createList(name) {
+            if (!this.workingElements.length) {
+                var message = (0, _localization2.default)("No valid elements for final list") + ". ";
+                message += "<a class=\"cancel-create\" href=\"javascript:void(0);\">" + (0, _localization2.default)("Cancel") + "</a> ";
+                message += (0, _localization2.default)("or");
+                message += " <a class=\"reset\" href=\"javascript:void(0);\">" + (0, _localization2.default)("start over") + "</a>.";
+                this._showAlert(message);
+                return;
+            }
+
+            var creator = this;
+
+            var elements = this.workingElements.map(function(element) {
+                return creator._elementToJSON(element);
+            });
+
+            creator.blocking = true;
+            return creator.creationFn(elements, name, creator.hideOriginals).always(function() {
+                creator.blocking = false;
+            }).fail(function(xhr, status, message) {
+                creator.trigger("error", {
+                    xhr: xhr,
+                    status: status,
+                    message: (0, _localization2.default)("An error occurred while creating this collection")
+                });
+            }).done(function(response, message, xhr) {
+                creator.trigger("collection:created", response, message, xhr);
+                creator.metric("collection:created", response);
+                if (typeof creator.oncreate === "function") {
+                    creator.oncreate.call(this, response, message, xhr);
+                }
+            });
+        },
+
+        // ------------------------------------------------------------------------ events
+        /** set up event handlers on self */
+        _setUpBehaviors: function _setUpBehaviors() {
+            this.on("error", this._errorHandler);
+
+            this.once("rendered", function() {
+                this.trigger("rendered:initial", this);
+            });
+
+            this.on("elements:select", function(data) {
+                this._renderClearSelected();
+            });
+
+            this.on("elements:discard", function(data) {
+                var element = data.source.element;
+                this.removeElementView(data.source);
+
+                this.workingElements = _.without(this.workingElements, element);
+                if (!this.workingElements.length) {
+                    this._renderNoElementsLeft();
+                }
+            });
+
+            //this.on( 'all', function(){
+            //    this.info( arguments );
+            //});
+            return this;
+        },
+
+        /** handle errors with feedback and details to the user (if available) */
+        _errorHandler: function _errorHandler(data) {
+            this.error(data);
+
+            var creator = this;
+            var content = data.message || (0, _localization2.default)("An error occurred");
+            if (data.xhr) {
+                var xhr = data.xhr;
+                var message = data.message;
+                if (xhr.readyState === 0 && xhr.status === 0) {
+                    content += ": " + (0, _localization2.default)("Galaxy could not be reached and may be updating.") + (0, _localization2.default)(" Try again in a few minutes.");
+                } else if (xhr.responseJSON) {
+                    content += ":<br /><pre>" + JSON.stringify(xhr.responseJSON) + "</pre>";
+                } else {
+                    content += ": " + message;
+                }
+            }
+            creator._showAlert(content, "alert-danger");
+        },
+
+        events: {
+            // header
+            "click .more-help": "_clickMoreHelp",
+            "click .less-help": "_clickLessHelp",
+            "click .main-help": "_toggleHelp",
+            "click .header .alert button": "_hideAlert",
+
+            "click .reset": "reset",
+            "click .clear-selected": "clearSelectedElements",
+
+            // elements - selection
+            "click .collection-elements": "clearSelectedElements",
+
+            // elements - drop target
+            // 'dragenter .collection-elements': '_dragenterElements',
+            // 'dragleave .collection-elements': '_dragleaveElements',
+            "dragover .collection-elements": "_dragoverElements",
+            "drop .collection-elements": "_dropElements",
+
+            // these bubble up from the elements as custom events
+            "collection-element.dragstart .collection-elements": "_elementDragstart",
+            "collection-element.dragend   .collection-elements": "_elementDragend",
+
+            // footer
+            "change .collection-name": "_changeName",
+            "keydown .collection-name": "_nameCheckForEnter",
+            "change .hide-originals": "_changeHideOriginals",
+            "click .cancel-create": "_cancelCreate",
+            "click .create-collection": "_clickCreate" //,
+        },
+
+        // ........................................................................ elements
+        /** reset all data to the initial state */
+        reset: function reset() {
+            this._instanceSetUp();
+            this._elementsSetUp();
+            this.render();
+        },
+
+        /** deselect all elements */
+        clearSelectedElements: function clearSelectedElements(ev) {
+            this.$(".collection-elements .collection-element").removeClass("selected");
+            this.$(".collection-elements-controls > .clear-selected").hide();
+        },
+
+        //_dragenterElements : function( ev ){
+        //    //this.debug( '_dragenterElements:', ev );
+        //},
+        //TODO: if selected are dragged out of the list area - remove the placeholder - cuz it won't work anyway
+        // _dragleaveElements : function( ev ){
+        //    //this.debug( '_dragleaveElements:', ev );
+        // },
+
+        /** track the mouse drag over the list adding a placeholder to show where the drop would occur */
+        _dragoverElements: function _dragoverElements(ev) {
+            //this.debug( '_dragoverElements:', ev );
+            ev.preventDefault();
+
+            var $list = this.$list();
+            this._checkForAutoscroll($list, ev.originalEvent.clientY);
+            var $nearest = this._getNearestElement(ev.originalEvent.clientY);
+
+            //TODO: no need to re-create - move instead
+            this.$(".element-drop-placeholder").remove();
+            var $placeholder = $('<div class="element-drop-placeholder"></div>');
+            if (!$nearest.length) {
+                $list.append($placeholder);
+            } else {
+                $nearest.before($placeholder);
+            }
+        },
+
+        /** If the mouse is near enough to the list's top or bottom, scroll the list */
+        _checkForAutoscroll: function _checkForAutoscroll($element, y) {
+            var AUTOSCROLL_SPEED = 2;
+            var offset = $element.offset();
+            var scrollTop = $element.scrollTop();
+            var upperDist = y - offset.top;
+            var lowerDist = offset.top + $element.outerHeight() - y;
+            if (upperDist >= 0 && upperDist < this.autoscrollDist) {
+                $element.scrollTop(scrollTop - AUTOSCROLL_SPEED);
+            } else if (lowerDist >= 0 && lowerDist < this.autoscrollDist) {
+                $element.scrollTop(scrollTop + AUTOSCROLL_SPEED);
+            }
+        },
+
+        /** get the nearest element based on the mouse's Y coordinate.
+         *  If the y is at the end of the list, return an empty jQuery object.
+         */
+        _getNearestElement: function _getNearestElement(y) {
+            var WIGGLE = 4;
+
+            var lis = this.$(".collection-elements li.collection-element").toArray();
+
+            for (var i = 0; i < lis.length; i++) {
+                var $li = $(lis[i]);
+                var top = $li.offset().top;
+                var halfHeight = Math.floor($li.outerHeight() / 2) + WIGGLE;
+                if (top + halfHeight > y && top - halfHeight < y) {
+                    return $li;
+                }
+            }
+            return $();
+        },
+
+        /** drop (dragged/selected elements) onto the list, re-ordering the internal list */
+        _dropElements: function _dropElements(ev) {
+            if (ev.originalEvent) {
+                ev = ev.originalEvent;
+            }
+            // both required for firefox
+            ev.preventDefault();
+            ev.dataTransfer.dropEffect = "move";
+
+            // insert before the nearest element or after the last.
+            var $nearest = this._getNearestElement(ev.clientY);
+            if ($nearest.length) {
+                this.$dragging.insertBefore($nearest);
+            } else {
+                // no nearest before - insert after last element
+                this.$dragging.insertAfter(this.$(".collection-elements .collection-element").last());
+            }
+            // resync the creator's list based on the new DOM order
+            this._syncOrderToDom();
+            return false;
+        },
+
+        /** resync the creator's list of elements based on the DOM order */
+        _syncOrderToDom: function _syncOrderToDom() {
+            var creator = this;
+            var newElements = [];
+            //TODO: doesn't seem wise to use the dom to store these - can't we sync another way?
+            this.$(".collection-elements .collection-element").each(function() {
+                var id = $(this).attr("data-element-id");
+
+                var element = _.findWhere(creator.workingElements, {
+                    id: id
+                });
+
+                if (element) {
+                    newElements.push(element);
+                } else {
+                    console.error("missing element: ", id);
+                }
+            });
+            this.workingElements = newElements;
+            this._renderList();
+        },
+
+        /** drag communication with element sub-views: dragstart */
+        _elementDragstart: function _elementDragstart(ev, element) {
+            // auto select the element causing the event and move all selected
+            element.select(true);
+            this.$dragging = this.$(".collection-elements .collection-element.selected");
+        },
+
+        /** drag communication with element sub-views: dragend - remove the placeholder */
+        _elementDragend: function _elementDragend(ev, element) {
+            $(".element-drop-placeholder").remove();
+            this.$dragging = null;
+        },
+
+        // ------------------------------------------------------------------------ templates
+        //TODO: move to require text plugin and load these as text
+        //TODO: underscore currently unnecc. bc no vars are used
+        //TODO: better way of localizing text-nodes in long strings
+        /** underscore template fns attached to class */
+        templates: _.extend({}, _baseCreator2.default.CollectionCreatorMixin._creatorTemplates, {
+            /** the header (not including help text) */
+            header: _.template(['<div class="main-help well clear">', '<a class="more-help" href="javascript:void(0);">', (0, _localization2.default)("More help"), "</a>", '<div class="help-content">', '<a class="less-help" href="javascript:void(0);">', (0, _localization2.default)("Less"), "</a>", "</div>", "</div>", '<div class="alert alert-dismissable">', '<button type="button" class="close" data-dismiss="alert" ', 'title="', (0, _localization2.default)("Close and show more help"), '" aria-hidden="true">&times;</button>', '<span class="alert-message"></span>', "</div>"].join("")),
+
+            /** the middle: element list */
+            middle: _.template(['<div class="collection-elements-controls">', '<a class="reset" href="javascript:void(0);" ', 'title="', (0, _localization2.default)("Undo all reordering and discards"), '">', (0, _localization2.default)("Start over"), "</a>", '<a class="clear-selected" href="javascript:void(0);" ', 'title="', (0, _localization2.default)("De-select all selected datasets"), '">', (0, _localization2.default)("Clear selected"), "</a>", "</div>", '<div class="collection-elements scroll-container flex-row">', "</div>"].join("")),
+
+            /** creation and cancel controls */
+            footer: _.template(['<div class="attributes clear">', '<div class="clear">', '<label class="setting-prompt float-right">', (0, _localization2.default)("Hide original elements"), "?", '<input class="hide-originals float-right" type="checkbox" />', "</label>", "</div>", '<div class="clear">', '<input class="collection-name form-control float-right" ', 'placeholder="', (0, _localization2.default)("Enter a name for your new collection"), '" />', '<div class="collection-name-prompt float-right">', (0, _localization2.default)("Name"), ":</div>", "</div>", "</div>", '<div class="actions clear vertically-spaced">', '<div class="other-options float-left">', '<button class="cancel-create btn" tabindex="-1">', (0, _localization2.default)("Cancel"), "</button>", '<div class="create-other btn-group dropup">', '<button class="btn btn-secondary dropdown-toggle" data-toggle="dropdown">', (0, _localization2.default)("Create a different kind of collection"), ' <span class="caret"></span>', "</button>", '<ul class="dropdown-menu" role="menu">', '<li><a href="#">', (0, _localization2.default)("Create a <i>single</i> pair"), "</a></li>", '<li><a href="#">', (0, _localization2.default)("Create a list of <i>unpaired</i> datasets"), "</a></li>", "</ul>", "</div>", "</div>", '<div class="main-options float-right">', '<button class="create-collection btn btn-primary">', (0, _localization2.default)("Create list"), "</button>", "</div>", "</div>"].join("")),
+
+            /** help content */
+            helpContent: _.template(["<p>", (0, _localization2.default)(["Collections of datasets are permanent, ordered lists of datasets that can be passed to tools and ", "workflows in order to have analyses done on each member of the entire group. This interface allows ", "you to create a collection and re-order the final collection."].join("")), "</p>", "<ul>", "<li>", (0, _localization2.default)(["Rename elements in the list by clicking on ", '<i data-target=".collection-element .name">the existing name</i>.'].join("")), "</li>", "<li>", (0, _localization2.default)(["Discard elements from the final created list by clicking on the ", '<i data-target=".collection-element .discard">"Discard"</i> button.'].join("")), "</li>", "<li>", (0, _localization2.default)(["Reorder the list by clicking and dragging elements. Select multiple elements by clicking on ", '<i data-target=".collection-element">them</i> and you can then move those selected by dragging the ', "entire group. Deselect them by clicking them again or by clicking the ", 'the <i data-target=".clear-selected">"Clear selected"</i> link.'].join("")), "</li>", "<li>", (0, _localization2.default)(['Click the <i data-target=".reset">"Start over"</i> link to begin again as if you had just opened ', "the interface."].join("")), "</li>", "<li>", (0, _localization2.default)(['Click the <i data-target=".cancel-create">"Cancel"</i> button to exit the interface.'].join("")), "</li>", "</ul><br />", "<p>", (0, _localization2.default)(['Once your collection is complete, enter a <i data-target=".collection-name">name</i> and ', 'click <i data-target=".create-collection">"Create list"</i>.'].join("")), "</p>"].join("")),
+
+            /** shown in list when all elements are discarded */
+            invalidElements: _.template([(0, _localization2.default)("The following selections could not be included due to problems:"), "<ul><% _.each( problems, function( problem ){ %>", "<li><b><%- problem.element.name %></b>: <%- problem.text %></li>", "<% }); %></ul>"].join("")),
+
+            /** shown in list when all elements are discarded */
+            noElementsLeft: _.template(['<li class="no-elements-left-message">', (0, _localization2.default)("No elements left! "), (0, _localization2.default)("Would you like to "), '<a class="reset" href="javascript:void(0)">', (0, _localization2.default)("start over"), "</a>?", "</li>"].join("")),
+
+            /** a simplified page communicating what went wrong and why the user needs to reselect something else */
+            invalidInitial: _.template(['<div class="header flex-row no-flex">', '<div class="alert alert-warning" style="display: block">', '<span class="alert-message">', "<% if( _.size( problems ) ){ %>", (0, _localization2.default)("The following selections could not be included due to problems"), ":", "<ul><% _.each( problems, function( problem ){ %>", "<li><b><%- problem.element.name %></b>: <%- problem.text %></li>", "<% }); %></ul>", "<% } else if( _.size( elements ) < 1 ){ %>", (0, _localization2.default)("No datasets were selected"), ".", "<% } %>", "<br />", (0, _localization2.default)("At least one element is needed for the collection"), ". ", (0, _localization2.default)("You may need to "), '<a class="cancel-create" href="javascript:void(0)">', (0, _localization2.default)("cancel"), "</a> ", (0, _localization2.default)("and reselect new elements"), ".", "</span>", "</div>", "</div>", '<div class="footer flex-row no-flex">', '<div class="actions clear vertically-spaced">', '<div class="other-options float-left">', '<button class="cancel-create btn" tabindex="-1">', (0, _localization2.default)("Cancel"), "</button>",
+                // _l( 'Create a different kind of collection' ),
+                "</div>", "</div>", "</div>"
+            ].join(""))
+        }),
+
+        // ------------------------------------------------------------------------ misc
+        /** string rep */
+        toString: function toString() {
+            return "ListCollectionCreator";
+        }
+    });
+
+    var collectionCreatorModalSetup = function _collectionCreatorModalSetup(options) {
+        var deferred = jQuery.Deferred();
+        var modal = Galaxy.modal || new _uiModal2.default.View();
+
+        var creatorOptions = _.defaults(options || {}, {
+            oncancel: function oncancel() {
+                modal.hide();
+                deferred.reject("cancelled");
+            },
+            oncreate: function oncreate(creator, response) {
+                modal.hide();
+                deferred.resolve(response);
+            }
+        });
+
+        var showEl = function showEl(el) {
+            modal.show({
+                title: options.title || (0, _localization2.default)("Create a collection"),
+                body: el,
+                width: "85%",
+                height: "100%",
+                xlarge: true,
+                closing_events: true
+            });
+        };
+
+        return {
+            deferred: deferred,
+            creatorOptions: creatorOptions,
+            showEl: showEl
+        };
+    };
+
+    //=============================================================================
+    /** Create a modal and load its body with the given CreatorClass creator type
+     *  @returns {Deferred} resolved when creator has built a collection.
+     */
+    var collectionCreatorModal = function _collectionCreatorModal(elements, options, CreatorClass) {
+        options = _.defaults(options || {}, {
+            elements: elements
+        });
+
+        var _collectionCreatorMod = collectionCreatorModalSetup(options),
+            deferred = _collectionCreatorMod.deferred,
+            creatorOptions = _collectionCreatorMod.creatorOptions,
+            showEl = _collectionCreatorMod.showEl;
+
+        var creator = new CreatorClass(creatorOptions);
+        showEl(creator.$el);
+        creator.render();
+        return deferred;
+    };
+
+    var ruleBasedCollectionCreatorModal = function _ruleBasedCollectionCreatorModal(elements, elementsType, importType, options) {
+        // importType in [datasets, collection]
+        // elementsType in [raw, ftp, datasets]
+        var title = void 0;
+        if (importType == "datasets") {
+            title = (0, _localization2.default)("Build Rules for Uploading Datasets");
+        } else if (elementsType == "collection_contents") {
+            title = (0, _localization2.default)("Build Rules for Applying to Existing Collection");
+        } else if (elementsType == "datasets" || elementsType == "library_datasets") {
+            title = (0, _localization2.default)("Build Rules for Creating Collection(s)");
+        } else {
+            title = (0, _localization2.default)("Build Rules for Uploading Collections");
+        }
+        options = _.defaults(options || {}, {
+            title: title
+        });
+
+        var _collectionCreatorMod2 = collectionCreatorModalSetup(options),
+            deferred = _collectionCreatorMod2.deferred,
+            creatorOptions = _collectionCreatorMod2.creatorOptions,
+            showEl = _collectionCreatorMod2.showEl;
+
+        var ruleCollectionBuilderInstance = _vue2.default.extend(_RuleCollectionBuilder2.default);
+        var vm = document.createElement("div");
+        showEl(vm);
+        new ruleCollectionBuilderInstance({
+            propsData: {
+                initialElements: elements,
+                elementsType: elementsType,
+                importType: importType,
+                ftpUploadSite: options.ftpUploadSite,
+                creationFn: options.creationFn,
+                oncancel: options.oncancel,
+                oncreate: options.oncreate,
+                defaultHideSourceItems: options.defaultHideSourceItems,
+                saveRulesFn: options.saveRulesFn,
+                initialRules: options.initialRules
+            }
+        }).$mount(vm);
+        return deferred;
+    };
+
+    /** List collection flavor of collectionCreatorModal. */
+    var listCollectionCreatorModal = function _listCollectionCreatorModal(elements, options) {
+        options = options || {};
+        options.title = (0, _localization2.default)("Create a collection from a list of datasets");
+        return collectionCreatorModal(elements, options, ListCollectionCreator);
+    };
+
+    //==============================================================================
+    /** Use a modal to create a list collection, then add it to the given history contents.
+     *  @returns {Deferred} resolved when the collection is added to the history.
+     */
+    function createListCollection(contents, defaultHideSourceItems) {
+        var elements = contents.toJSON();
+
+        var promise = listCollectionCreatorModal(elements, {
+            defaultHideSourceItems: defaultHideSourceItems,
+            creationFn: function creationFn(elements, name, hideSourceItems) {
+                elements = elements.map(function(element) {
+                    return {
+                        id: element.id,
+                        name: element.name,
+                        //TODO: this allows for list:list even if the filter above does not - reconcile
+                        src: element.history_content_type === "dataset" ? "hda" : "hdca"
+                    };
+                });
+                return contents.createHDCA(elements, "list", name, hideSourceItems);
+            }
+        });
+
+        return promise;
+    }
+
+    function createCollectionViaRules(selection, defaultHideSourceItems) {
+        var elements = void 0,
+            elementsType = void 0,
+            importType = void 0;
+        var selectionType = selection.selectionType;
+        if (!selectionType) {
+            // Have HDAs from the history panel.
+            elements = selection.toJSON();
+            elementsType = "datasets";
+            importType = "collections";
+        } else if (selection.elements) {
+            elementsType = selection.selectionType;
+            importType = selection.dataType || "collections";
+            elements = selection.elements;
+        } else {
+            var hasNonWhitespaceChars = RegExp(/[^\s]/);
+            // Have pasted data, data from a history dataset, or FTP list.
+            var lines = selection.content.split(/[\n\r]/).filter(function(line) {
+                return line.length > 0 && hasNonWhitespaceChars.exec(line);
+            });
+
+            // Really poor tabular parser - we should get a library for this or expose options? I'm not
+            // sure.
+            var hasTabs = false;
+            if (lines.length > 0) {
+                var firstLine = lines[0];
+                if (firstLine.indexOf("\t") >= 0) {
+                    hasTabs = true;
+                }
+            }
+            var regex = hasTabs ? /\t/ : /\s+/;
+            elements = lines.map(function(line) {
+                return line.split(regex);
+            });
+            elementsType = selection.selectionType;
+            importType = selection.dataType || "collections";
+        }
+        var promise = ruleBasedCollectionCreatorModal(elements, elementsType, importType, {
+            ftpUploadSite: selection.ftpUploadSite,
+            defaultHideSourceItems: defaultHideSourceItems,
+            creationFn: function creationFn(elements, collectionType, name, hideSourceItems) {
+                return selection.createHDCA(elements, collectionType, name, hideSourceItems);
+            }
+        });
+        return promise;
+    }
+
+    //==============================================================================
+    exports.default = {
+        DatasetCollectionElementView: DatasetCollectionElementView,
+        ListCollectionCreator: ListCollectionCreator,
+        collectionCreatorModal: collectionCreatorModal,
+        listCollectionCreatorModal: listCollectionCreatorModal,
+        createListCollection: createListCollection,
+        createCollectionViaRules: createCollectionViaRules,
+        ruleBasedCollectionCreatorModal: ruleBasedCollectionCreatorModal
+    };
+});
 //# sourceMappingURL=../../../maps/mvc/collection/list-collection-creator.js.map

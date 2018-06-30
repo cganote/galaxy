@@ -1,4 +1,5 @@
 import socket
+
 from galaxy.util import sockets
 
 
@@ -9,4 +10,3 @@ def test_unused_free_port_unconstrained():
     # would throw exception if port was not free.
     s.bind(('localhost', port))
     s.close()
-

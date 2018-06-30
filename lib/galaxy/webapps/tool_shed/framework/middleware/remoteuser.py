@@ -1,8 +1,8 @@
 """
 Middleware for handling $REMOTE_USER if use_remote_user is enabled.
 """
-
 import socket
+
 from galaxy.util import safe_str_cmp
 
 errorpage = """
@@ -36,30 +36,31 @@ errorpage = """
 </html>
 """
 
-class RemoteUser( object ):
-    def __init__( self, app, maildomain=None, display_servers=None, admin_users=None, remote_user_secret_header=None ):
+
+class RemoteUser(object):
+    def __init__(self, app, maildomain=None, display_servers=None, admin_users=None, remote_user_secret_header=None):
         self.app = app
         self.maildomain = maildomain
         self.display_servers = display_servers or []
         self.admin_users = admin_users or []
         self.config_secret_header = remote_user_secret_header
 
-    def __call__( self, environ, start_response ):
-        environ[ 'webapp' ] = 'tool_shed'
+    def __call__(self, environ, start_response):
+        environ['webapp'] = 'tool_shed'
         # Allow display servers
-        if self.display_servers and environ.has_key( 'REMOTE_ADDR' ):
+        if self.display_servers and 'REMOTE_ADDR' in environ:
             try:
-                host = socket.gethostbyaddr( environ[ 'REMOTE_ADDR' ] )[0]
-            except( socket.error, socket.herror, socket.gaierror, socket.timeout ):
+                host = socket.gethostbyaddr(environ['REMOTE_ADDR'])[0]
+            except(socket.error, socket.herror, socket.gaierror, socket.timeout):
                 # in the event of a lookup failure, deny access
                 host = None
             if host in self.display_servers:
-                environ[ 'HTTP_REMOTE_USER' ] = 'remote_display_server@%s' % ( self.maildomain or 'example.org' )
-                return self.app( environ, start_response )
+                environ['HTTP_REMOTE_USER'] = 'remote_display_server@%s' % (self.maildomain or 'example.org')
+                return self.app(environ, start_response)
 
         # If the secret header is enabled, we expect upstream to send along some key
         # in HTTP_GX_SECRET, so we'll need to compare that here to the correct value
-        # 
+        #
         # This is not an ideal location for this function.  The reason being
         # that because this check is done BEFORE the REMOTE_USER check,  it is
         # possible to attack the GX_SECRET key without having correct
@@ -74,23 +75,23 @@ class RemoteUser( object ):
                 title = "Access to Galaxy is denied"
                 message = """
                 Galaxy is configured to authenticate users via an external
-                method (such as HTTP authentication in Apache), but an 
-                incorrect shared secret key was provided by the 
+                method (such as HTTP authentication in Apache), but an
+                incorrect shared secret key was provided by the
                 upstream (proxy) server.</p>
                 <p>Please contact your local Galaxy administrator.  The
                 variable <code>remote_user_secret</code> and
                 <code>GX_SECRET</code> header must be set before you may
                 access Galaxy.
                 """
-                return self.error( start_response, title, message )
+                return self.error(start_response, title, message)
 
         # Apache sets REMOTE_USER to the string '(null)' when using the Rewrite* method for passing REMOTE_USER and a user is
         # un-authenticated.  Any other possible values need to go here as well.
         path_info = environ.get('PATH_INFO', '')
-        if environ.has_key( 'HTTP_REMOTE_USER' ) and environ[ 'HTTP_REMOTE_USER' ] != '(null)':
-            if not environ[ 'HTTP_REMOTE_USER' ].count( '@' ):
+        if 'HTTP_REMOTE_USER' in environ and environ['HTTP_REMOTE_USER'] != '(null)':
+            if not environ['HTTP_REMOTE_USER'].count('@'):
                 if self.maildomain is not None:
-                    environ[ 'HTTP_REMOTE_USER' ] += '@' + self.maildomain
+                    environ['HTTP_REMOTE_USER'] += '@' + self.maildomain
                 else:
                     title = "Access to this Galaxy tool shed is denied"
                     message = """
@@ -101,12 +102,12 @@ class RemoteUser( object ):
                         <p>The variable <code>remote_user_maildomain</code> must be set before you
                         can access this tool shed.  Contact your local tool shed administrator.
                     """
-                    return self.error( start_response, title, message )
-            return self.app( environ, start_response )
-        elif path_info.startswith( '/api/' ):
+                    return self.error(start_response, title, message)
+            return self.app(environ, start_response)
+        elif path_info.startswith('/api/'):
             # The API handles its own authentication via keys
-            return self.app( environ, start_response )
-        elif path_info.startswith( '/user/api_keys' ):
+            return self.app(environ, start_response)
+        elif path_info.startswith('/user/api_keys'):
             # api_keys can be managed when remote_user is in use.
             pass
         else:
@@ -118,8 +119,8 @@ class RemoteUser( object ):
                 misconfiguration in the upstream server.</p>
                 <p>Contact your local Galaxy tool shed administrator.
             """
-            return self.error( start_response, title, message )
+            return self.error(start_response, title, message)
 
-    def error( self, start_response, title="Access denied", message="Contact your local Galaxy tool shed administrator." ):
-        start_response( '403 Forbidden', [('Content-type', 'text/html')] )
+    def error(self, start_response, title="Access denied", message="Contact your local Galaxy tool shed administrator."):
+        start_response('403 Forbidden', [('Content-type', 'text/html')])
         return [errorpage % (title, message)]

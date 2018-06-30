@@ -9,23 +9,28 @@ Error handler middleware
 When an exception is thrown from the wrapper application, this logs
 the exception and displays an error page.
 """
+import cgi
 import sys
 import traceback
-import cgi
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
-from paste.exceptions import formatter, collector, reporter
-from paste import wsgilib
-from paste import request
 
-__all__ = ['ErrorMiddleware', 'handle_exception']
+import six
+from paste import (
+    request,
+    wsgilib
+)
+from paste.exceptions import collector, formatter, reporter
+from six.moves import cStringIO as StringIO
+
+__all__ = ('ErrorMiddleware', 'handle_exception')
+
 
 class _NoDefault(object):
     def __repr__(self):
         return '<NoDefault>'
+
+
 NoDefault = _NoDefault()
+
 
 class ErrorMiddleware(object):
 
@@ -108,10 +113,10 @@ class ErrorMiddleware(object):
             show_exceptions_in_wsgi_errors = converters.asbool(global_conf.get('show_exceptions_in_wsgi_errors'))
         self.debug_mode = converters.asbool(debug)
         if error_email is None:
-            error_email = (global_conf.get('error_email')
-                           or global_conf.get('admin_email')
-                           or global_conf.get('webmaster_email')
-                           or global_conf.get('sysadmin_email'))
+            error_email = (global_conf.get('error_email') or
+                           global_conf.get('admin_email') or
+                           global_conf.get('webmaster_email') or
+                           global_conf.get('sysadmin_email'))
         self.error_email = converters.aslist(error_email)
         self.error_log = error_log
         self.show_exceptions_in_wsgi_errors = show_exceptions_in_wsgi_errors
@@ -148,7 +153,7 @@ class ErrorMiddleware(object):
             sr_checker = ResponseStartChecker(start_response)
             app_iter = self.application(environ, sr_checker)
             return self.make_catching_iter(app_iter, environ, sr_checker)
-        except:
+        except Exception:
             exc_info = sys.exc_info()
             try:
                 for expect in environ.get('paste.expected_exceptions', []):
@@ -193,6 +198,7 @@ class ErrorMiddleware(object):
             simple_html_error=simple_html_error,
             environ=environ)
 
+
 class ResponseStartChecker(object):
     def __init__(self, start_response):
         self.start_response = start_response
@@ -204,7 +210,8 @@ class ResponseStartChecker(object):
         # returned
         return self.start_response(*args)
 
-class CatchingIter(object):
+
+class CatchingIter(six.Iterator):
 
     """
     A wrapper around the application iterator that will catch
@@ -223,13 +230,13 @@ class CatchingIter(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         __traceback_supplement__ = (
             Supplement, self.error_middleware, self.environ)
         if self.closed:
             raise StopIteration
         try:
-            return self.app_iterator.next()
+            return next(self.app_iterator)
         except StopIteration:
             self.closed = True
             close_response = self._close()
@@ -237,7 +244,7 @@ class CatchingIter(object):
                 return close_response
             else:
                 raise StopIteration
-        except:
+        except Exception:
             self.closed = True
             close_response = self._close()
             exc_info = sys.exc_info()
@@ -250,8 +257,8 @@ class CatchingIter(object):
 
             if not self.start_checker.response_started:
                 self.start_checker('500 Internal Server Error',
-                               [('content-type', 'text/html')],
-                               exc_info)
+                                   [('content-type', 'text/html')],
+                                   exc_info)
 
             return response
 
@@ -268,7 +275,7 @@ class CatchingIter(object):
         try:
             self.app_iterable.close()
             return None
-        except:
+        except Exception:
             close_response = self.error_middleware.exception_handler(
                 sys.exc_info(), self.environ)
             return close_response
@@ -322,7 +329,8 @@ class Supplement(object):
         (0, 1, 1): 'Multithread CGI (?)',
         (1, 0, 1): 'CGI',
         (1, 1, 1): 'Multi thread/process CGI (?)',
-        }
+    }
+
 
 def handle_exception(exc_info, error_stream, html=True,
                      debug_mode=False,
@@ -348,7 +356,7 @@ def handle_exception(exc_info, error_stream, html=True,
         from paste.exceptions.errormiddleware import handle_exception
         try:
             do stuff
-        except:
+        except Exception:
             handle_exception(
                 sys.exc_info(), sys.stderr, html=False, ...other config...)
 
@@ -422,16 +430,17 @@ def handle_exception(exc_info, error_stream, html=True,
         return_error = None
     if not reported and error_stream:
         err_report = formatter.format_text(exc_data, show_hidden_frames=True)
-        err_report += '\n' + '-'*60 + '\n'
+        err_report += '\n' + '-' * 60 + '\n'
         error_stream.write(err_report)
     if extra_data:
         error_stream.write(extra_data)
     return return_error
 
+
 def send_report(rep, exc_data, html=True):
     try:
         rep.report(exc_data)
-    except:
+    except Exception:
         output = StringIO()
         traceback.print_exc(file=output)
         if html:
@@ -447,6 +456,7 @@ def send_report(rep, exc_data, html=True):
                 "%s report:\n%s" % (str(rep), output.getvalue()))
     else:
         return ''
+
 
 def error_template(head_html, exception, extra):
     return '''
@@ -475,8 +485,10 @@ def error_template(head_html, exception, extra):
     </body>
     </html>''' % (head_html, exception, extra)
 
+
 def make_error_middleware(app, global_conf, **kw):
     return ErrorMiddleware(app, global_conf=global_conf, **kw)
+
 
 doc_lines = ErrorMiddleware.__doc__.splitlines(True)
 for i in range(len(doc_lines)):

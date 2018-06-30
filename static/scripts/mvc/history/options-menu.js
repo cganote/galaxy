@@ -1,2 +1,261 @@
-define(["mvc/ui/popup-menu","mvc/base-mvc","utils/localization"],function(a,b,c){function d(a,b,c){return _.clone(e).filter(function(d){return a&&!d.anon?!1:!b&&d.purge?!1:(d.href&&(d.href=c+d.href,d.target="galaxy_main"),d.confirm&&(d.func=function(){confirm(d.confirm)&&(galaxy_main.location=d.href)}),!0)})}var e=[{html:c("History Lists"),header:!0},{html:c("Saved Histories"),href:"history/list"},{html:c("Histories Shared with Me"),href:"history/list_shared"},{html:c("Current History"),header:!0,anon:!0},{html:c("Create New"),func:function(){Galaxy&&Galaxy.currHistoryPanel&&Galaxy.currHistoryPanel.createNewHistory()}},{html:c("Copy History"),href:"history/copy"},{html:c("Copy Datasets"),href:"dataset/copy_datasets"},{html:c("Share or Publish"),href:"history/sharing"},{html:c("Extract Workflow"),href:"workflow/build_from_current_history"},{html:c("Dataset Security"),href:"root/history_set_default_permissions"},{html:c("Resume Paused Jobs"),href:"history/resume_paused_jobs?current=True",anon:!0},{html:c("Collapse Expanded Datasets"),func:function(){Galaxy&&Galaxy.currHistoryPanel&&Galaxy.currHistoryPanel.collapseAll()}},{html:c("Unhide Hidden Datasets"),confirm:c("Really unhide all hidden datasets?"),href:"history/unhide_datasets?current=True",anon:!0},{html:c("Delete Hidden Datasets"),confirm:c("Really delete all hidden datasets?"),href:"history/delete_hidden_datasets",anon:!0},{html:c("Purge Deleted Datasets"),confirm:c("Really delete all deleted datasets permanently? This cannot be undone."),href:"history/purge_deleted_datasets",purge:!0,anon:!0},{html:c("Show Structure"),href:"history/display_structured",anon:!0},{html:c("Export Citations"),href:"history/citations",anon:!0},{html:c("Export to File"),href:"history/export_archive?preview=True",anon:!0},{html:c("Delete"),confirm:c("Really delete the current history?"),href:"history/delete_current"},{html:c("Delete Permanently"),confirm:c("Really delete the current history permanently? This cannot be undone."),href:"history/delete_current?purge=True",purge:!0,anon:!0},{html:c("Other Actions"),header:!0},{html:c("Import from File"),href:"history/import_archive"}],f=function(b,c){c=c||{};var e=void 0===c.anonymous?!0:c.anonymous,f=c.purgeAllowed||!1,g=c.root||(Galaxy&&Galaxy.options?Galaxy.options.root:"/"),h=d(e,f,g);return new a(b,h)};return f});
+define("mvc/history/options-menu", ["exports", "underscore", "utils/localization", "mvc/ui/popup-menu", "mvc/history/copy-dialog", "mvc/webhooks"], function(exports, _underscore, _localization, _popupMenu, _copyDialog, _webhooks) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var _ = _interopRequireWildcard(_underscore);
+
+    var _localization2 = _interopRequireDefault(_localization);
+
+    var _popupMenu2 = _interopRequireDefault(_popupMenu);
+
+    var _copyDialog2 = _interopRequireDefault(_copyDialog);
+
+    var _webhooks2 = _interopRequireDefault(_webhooks);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    function _interopRequireWildcard(obj) {
+        if (obj && obj.__esModule) {
+            return obj;
+        } else {
+            var newObj = {};
+
+            if (obj != null) {
+                for (var key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key];
+                }
+            }
+
+            newObj.default = obj;
+            return newObj;
+        }
+    }
+
+    /* global $ */
+    /* global Galaxy */
+
+    // ============================================================================
+    var menu = [{
+        html: (0, _localization2.default)("History Lists"),
+        header: true
+    }, {
+        html: (0, _localization2.default)("Saved Histories"),
+        href: "histories/list",
+        target: "_top"
+    }, {
+        html: (0, _localization2.default)("Histories Shared with Me"),
+        href: "histories/list_shared",
+        target: "_top"
+    }, {
+        html: (0, _localization2.default)("Current History"),
+        header: true,
+        anon: true
+    }, {
+        html: (0, _localization2.default)("Create New"),
+        func: function func() {
+            if (Galaxy && Galaxy.currHistoryPanel) {
+                Galaxy.currHistoryPanel.createNewHistory();
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Copy History"),
+        func: function func() {
+            (0, _copyDialog2.default)(Galaxy.currHistoryPanel.model).done(function() {
+                Galaxy.currHistoryPanel.loadCurrentHistory();
+            });
+        }
+    }, {
+        html: (0, _localization2.default)("Share or Publish"),
+        func: function func() {
+            if (Galaxy && Galaxy.currHistoryPanel && Galaxy.router) {
+                Galaxy.router.push("/histories/sharing?id=" + Galaxy.currHistoryPanel.model.id);
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Show Structure"),
+        anon: true,
+        func: function func() {
+            if (Galaxy && Galaxy.currHistoryPanel && Galaxy.router) {
+                Galaxy.router.push("/histories/show_structure");
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Extract Workflow"),
+        href: "workflow/build_from_current_history"
+    }, {
+        html: (0, _localization2.default)("Delete"),
+        anon: true,
+        func: function func() {
+            if (Galaxy && Galaxy.currHistoryPanel && confirm((0, _localization2.default)("Really delete the current history?"))) {
+                Galaxy.currHistoryPanel.model._delete().done(function() {
+                    Galaxy.currHistoryPanel.loadCurrentHistory();
+                });
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Delete Permanently"),
+        purge: true,
+        anon: true,
+        func: function func() {
+            if (Galaxy && Galaxy.currHistoryPanel && confirm((0, _localization2.default)("Really delete the current history permanently? This cannot be undone."))) {
+                Galaxy.currHistoryPanel.model.purge().done(function() {
+                    Galaxy.currHistoryPanel.loadCurrentHistory();
+                });
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Dataset Actions"),
+        header: true,
+        anon: true
+    }, {
+        html: (0, _localization2.default)("Copy Datasets"),
+        href: "dataset/copy_datasets"
+    }, {
+        html: (0, _localization2.default)("Dataset Security"),
+        func: function func() {
+            if (Galaxy && Galaxy.currHistoryPanel && Galaxy.router) {
+                Galaxy.router.push("/histories/permissions?id=" + Galaxy.currHistoryPanel.model.id);
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Resume Paused Jobs"),
+        href: "history/resume_paused_jobs?current=True",
+        anon: true
+    }, {
+        html: (0, _localization2.default)("Collapse Expanded Datasets"),
+        func: function func() {
+            if (Galaxy && Galaxy.currHistoryPanel) {
+                Galaxy.currHistoryPanel.collapseAll();
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Unhide Hidden Datasets"),
+        anon: true,
+        func: function func() {
+            // TODO: Deprecate this functionality and replace with group dataset selector and action combination
+            if (Galaxy && Galaxy.currHistoryPanel && confirm((0, _localization2.default)("Really unhide all hidden datasets?"))) {
+                $.post(Galaxy.root + "history/adjust_hidden", {
+                    user_action: "unhide"
+                }, function() {
+                    Galaxy.currHistoryPanel.loadCurrentHistory();
+                });
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Delete Hidden Datasets"),
+        anon: true,
+        func: function func() {
+            // TODO: Deprecate this functionality and replace with group dataset selector and action combination
+            if (Galaxy && Galaxy.currHistoryPanel && confirm((0, _localization2.default)("Really delete all hidden datasets?"))) {
+                $.post(Galaxy.root + "history/adjust_hidden", {
+                    user_action: "delete"
+                }, function() {
+                    Galaxy.currHistoryPanel.loadCurrentHistory();
+                });
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Purge Deleted Datasets"),
+        confirm: (0, _localization2.default)("Really delete all deleted datasets permanently? This cannot be undone."),
+        href: "history/purge_deleted_datasets",
+        purge: true,
+        anon: true
+    }, {
+        html: (0, _localization2.default)("Downloads"),
+        header: true
+    }, {
+        html: (0, _localization2.default)("Export Tool Citations"),
+        anon: true,
+        func: function func() {
+            if (Galaxy && Galaxy.currHistoryPanel && Galaxy.router) {
+                Galaxy.router.push("/histories/citations?id=" + Galaxy.currHistoryPanel.model.id);
+            }
+        }
+    }, {
+        html: (0, _localization2.default)("Export History to File"),
+        href: "history/export_archive?preview=True",
+        anon: true
+    }, {
+        html: (0, _localization2.default)("Other Actions"),
+        header: true
+    }, {
+        html: (0, _localization2.default)("Import from File"),
+        href: "histories/import",
+        target: "_top"
+    }];
+
+    // Webhooks
+    _webhooks2.default.load({
+        type: "history-menu",
+        async: false, // (hypothetically) slows down the performance
+        callback: function callback(webhooks) {
+            var webhooks_menu = [];
+
+            webhooks.each(function(model) {
+                var webhook = model.toJSON();
+                if (webhook.activate) {
+                    webhooks_menu.push({
+                        html: (0, _localization2.default)(webhook.config.title),
+                        // func: function() {},
+                        anon: true
+                    });
+                }
+            });
+
+            if (webhooks_menu.length > 0) {
+                webhooks_menu.unshift({
+                    html: (0, _localization2.default)("Webhooks"),
+                    header: true
+                });
+                $.merge(menu, webhooks_menu);
+            }
+        }
+    });
+
+    function buildMenu(isAnon, purgeAllowed, urlRoot) {
+        return _.clone(menu).filter(function(menuOption) {
+            if (isAnon && !menuOption.anon) {
+                return false;
+            }
+            if (!purgeAllowed && menuOption.purge) {
+                return false;
+            }
+
+            //TODO:?? hard-coded galaxy_main
+            if (menuOption.href) {
+                menuOption.href = urlRoot + menuOption.href;
+                menuOption.target = menuOption.target || "galaxy_main";
+            }
+
+            if (menuOption.confirm) {
+                menuOption.func = function() {
+                    if (confirm(menuOption.confirm)) {
+                        /* galaxy_main is a global here: TODO: Fix it! */
+                        galaxy_main.location = menuOption.href;
+                    }
+                };
+            }
+            return true;
+        });
+    }
+
+    var create = function create($button, options) {
+        options = options || {};
+        var isAnon = options.anonymous === undefined ? true : options.anonymous;
+        var purgeAllowed = options.purgeAllowed || false;
+        var menu = buildMenu(isAnon, purgeAllowed, Galaxy.root);
+        //console.debug( 'menu:', menu );
+        return new _popupMenu2.default($button, menu);
+    };
+
+    // ============================================================================
+    exports.default = create;
+});
 //# sourceMappingURL=../../../maps/mvc/history/options-menu.js.map

@@ -1,2 +1,185 @@
-define(["utils/utils"],function(a){return Backbone.View.extend({options:{class_add:"upload-icon-button fa fa-square-o",class_remove:"upload-icon-button fa fa-check-square-o",class_partial:"upload-icon-button fa fa-minus-square-o"},initialize:function(b){this.app=b;var c=this;this.setElement(this._template()),this.rows=[],a.get({url:galaxy_config.root+"api/remote_files",success:function(a){c._fill(a)},error:function(){c._fill()}})},events:{mousedown:function(a){a.preventDefault()}},_fill:function(b){if(b&&b.length>0){this.$el.find("#upload-ftp-content").html($(this._templateTable()));var c=0;for(key in b)this.rows.push(this._add(b[key])),c+=b[key].size;this.$el.find("#upload-ftp-number").html(b.length+" files"),this.$el.find("#upload-ftp-disk").html(a.bytesToString(c,!0)),this.$select_all=$("#upload-selectall"),this.$select_all.addClass(this.options.class_add);var d=this;this.$select_all.on("click",function(){var a=d.$select_all.hasClass(d.options.class_add);for(key in b){var c=b[key],e=d._find(c);(!e&&a||e&&!a)&&d.rows[key].trigger("click")}}),d._refresh()}else this.$el.find("#upload-ftp-content").html($(this._templateInfo()));this.$el.find("#upload-ftp-wait").hide()},_add:function(a){var b=this,c=$(this._templateRow(a)),d=c.find(".icon");$(this.el).find("tbody").append(c);var e="";return e=this._find(a)?this.options.class_remove:this.options.class_add,d.addClass(e),c.on("click",function(){var c=b._find(a);d.removeClass(),c?(b.app.collection.remove(c),d.addClass(b.options.class_add)):(b.app.uploadbox.add([{mode:"ftp",name:a.path,size:a.size,path:a.path}]),d.addClass(b.options.class_remove)),b._refresh()}),c},_refresh:function(){var a=this.app.collection.where({file_mode:"ftp"});this.$select_all.removeClass(),this.$select_all.addClass(0==a.length?this.options.class_add:a.length==this.rows.length?this.options.class_remove:this.options.class_partial)},_find:function(a){var b=this.app.collection.findWhere({file_path:a.path,status:"init",file_mode:"ftp"});return b?b.get("id"):null},_templateRow:function(b){return'<tr class="upload-ftp-row"><td><div class="icon"/></td><td class="label"><p>'+b.path+'</p></td><td class="nonlabel">'+a.bytesToString(b.size)+'</td><td class="nonlabel">'+b.ctime+"</td></tr>"},_templateTable:function(){return'<span style="whitespace: nowrap; float: left;">Available files: </span><span style="whitespace: nowrap; float: right;"><span class="upload-icon fa fa-file-text-o"/><span id="upload-ftp-number"/>&nbsp;&nbsp;<span class="upload-icon fa fa-hdd-o"/><span id="upload-ftp-disk"/></span><table class="grid" style="float: left;"><thead><tr><th><div id="upload-selectall"></th><th>Name</th><th>Size</th><th>Created</th></tr></thead><tbody></tbody></table>'},_templateInfo:function(){return'<div class="upload-ftp-warning warningmessage">Your FTP directory does not contain any files.</div>'},_template:function(){return'<div class="upload-ftp"><div id="upload-ftp-wait" class="upload-ftp-wait fa fa-spinner fa-spin"/><div class="upload-ftp-help">This Galaxy server allows you to upload files via FTP. To upload some files, log in to the FTP server at <strong>'+this.app.options.ftp_upload_site+'</strong> using your Galaxy credentials (email address and password).</div><div id="upload-ftp-content"></div><div>'}})});
+define("mvc/upload/upload-ftp", ["exports", "utils/utils", "mvc/upload/upload-utils"], function(exports, _utils, _uploadUtils) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var _utils2 = _interopRequireDefault(_utils);
+
+    var _uploadUtils2 = _interopRequireDefault(_uploadUtils);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    exports.default = Backbone.View.extend({
+        initialize: function initialize(options) {
+            var self = this;
+            this.model = new Backbone.Model({
+                cls: "upload-ftp",
+                class_add: "upload-icon-button fa fa-square-o",
+                class_remove: "upload-icon-button fa fa-check-square-o",
+                class_partial: "upload-icon-button fa fa-minus-square-o",
+                help_enabled: true,
+                oidc_text: "<br/>If you are signed-in to Galaxy using a third-party identity and you <strong>don't have a Galaxy password</strong> please go to <a href=\"" + Galaxy.root + "user/reset_password\" target=\"_blank\">this</a> page and request a password for your Galaxy account.",
+                help_text: "This Galaxy server allows you to upload files via FTP. To upload some files, log in to the FTP server at <strong>" + options.ftp_upload_site + "</strong> using your Galaxy credentials.\n            For help visit the <a href=\"https://galaxyproject.org/ftp-upload/\" target=\"_blank\">tutorial</a>.",
+                collection: null,
+                onchange: function onchange() {},
+                onadd: function onadd() {},
+                onremove: function onremove() {}
+            }).set(options);
+
+            this.collection = this.model.get("collection");
+            if (Galaxy.config.enable_oidc) {
+                this.model.set("help_text", this.model.get("help_text") + this.model.get("oidc_text"));
+            }
+            this.setElement(this._template());
+            this.$content = this.$(".upload-ftp-content");
+            this.$wait = this.$(".upload-ftp-wait");
+            this.$help = this.$(".upload-ftp-help");
+            this.$number = this.$(".upload-ftp-number");
+            this.$disk = this.$(".upload-ftp-disk");
+            this.$body = this.$(".upload-ftp-body");
+            this.$warning = this.$(".upload-ftp-warning");
+            this.$select = this.$(".upload-ftp-select-all");
+            this.render();
+        },
+
+        render: function render() {
+            var self = this;
+            this.$wait.show();
+            this.$content.hide();
+            this.$warning.hide();
+            this.$help.hide();
+            _uploadUtils2.default.getRemoteFiles(function(ftp_files) {
+                self.model.set("ftp_files", ftp_files);
+                self._index();
+                self._renderTable();
+            }, function() {
+                self._renderTable();
+            });
+        },
+
+        /** Fill table with ftp entries */
+        _renderTable: function _renderTable() {
+            var self = this;
+            var ftp_files = this.model.get("ftp_files");
+            this.rows = [];
+            if (ftp_files && ftp_files.length > 0) {
+                this.$body.empty();
+                var size = 0;
+                _.each(ftp_files, function(ftp_file) {
+                    self.rows.push(self._renderRow(ftp_file));
+                    size += ftp_file.size;
+                });
+                this.$number.html(ftp_files.length + " files");
+                this.$disk.html(_utils2.default.bytesToString(size, true));
+                if (this.collection) {
+                    this.$("._has_collection").show();
+                    this.$select.addClass(this.model.get("class_add")).off().on("click", function() {
+                        self._all();
+                    });
+                    this._refresh();
+                }
+                this.$content.show();
+            } else {
+                this.$warning.show();
+            }
+            this.model.get("help_enabled") && this.$help.show();
+            this.$wait.hide();
+        },
+
+        /** Add row */
+        _renderRow: function _renderRow(ftp_file) {
+            var self = this;
+            var options = this.model.attributes;
+            var $it = $(this._templateRow(ftp_file));
+            var $icon = $it.find(".icon");
+            this.$body.append($it);
+            if (this.collection) {
+                var model_index = this.ftp_index[ftp_file.path];
+                $icon.addClass(model_index === undefined ? options.class_add : options.class_remove);
+                $it.on("click", function() {
+                    self._switch($icon, ftp_file);
+                    self._refresh();
+                });
+            } else {
+                $it.on("click", function() {
+                    options.onchange(ftp_file);
+                });
+            }
+            return $icon;
+        },
+
+        /** Create ftp index */
+        _index: function _index() {
+            var self = this;
+            this.ftp_index = {};
+            this.collection && this.collection.each(function(model) {
+                if (model.get("file_mode") == "ftp") {
+                    self.ftp_index[model.get("file_path")] = model.id;
+                }
+            });
+        },
+
+        /** Select all event handler */
+        _all: function _all() {
+            var options = this.model.attributes;
+            var ftp_files = this.model.get("ftp_files");
+            var add = this.$select.hasClass(options.class_add);
+            for (var index in ftp_files) {
+                var ftp_file = ftp_files[index];
+                var model_index = this.ftp_index[ftp_file.path];
+                if (model_index === undefined && add || model_index !== undefined && !add) {
+                    this._switch(this.rows[index], ftp_file);
+                }
+            }
+            this._refresh();
+        },
+
+        /** Handle collection changes */
+        _switch: function _switch($icon, ftp_file) {
+            $icon.removeClass();
+            var options = this.model.attributes;
+            var model_index = this.ftp_index[ftp_file.path];
+            if (model_index === undefined) {
+                var new_index = options.onadd(ftp_file);
+                $icon.addClass(options.class_remove);
+                this.ftp_index[ftp_file.path] = new_index;
+            } else {
+                options.onremove(model_index);
+                $icon.addClass(options.class_add);
+                this.ftp_index[ftp_file.path] = undefined;
+            }
+        },
+
+        /** Refresh select all button state */
+        _refresh: function _refresh() {
+            var counts = _.reduce(this.ftp_index, function(memo, element) {
+                element !== undefined && memo++;
+                return memo;
+            }, 0);
+            this.$select.removeClass();
+            if (counts == 0) {
+                this.$select.addClass(this.model.get("class_add"));
+            } else {
+                this.$select.addClass(counts == this.rows.length ? this.model.get("class_remove") : this.model.get("class_partial"));
+            }
+        },
+
+        /** Template of row */
+        _templateRow: function _templateRow(options) {
+            return "<tr class=\"upload-ftp-row\"><td class=\"_has_collection\" style=\"display: none;\"><div class=\"icon\"/></td><td class=\"ftp-name\">" + _.escape(options.path) + "</td><td class=\"ftp-size\">" + _utils2.default.bytesToString(options.size) + "</td><td class=\"ftp-time\">" + options.ctime + "</td></tr>";
+        },
+
+        /** Template of main view */
+        _template: function _template() {
+            return "<div class=\"" + this.model.get("cls") + "\"><div class=\"upload-ftp-wait fa fa-spinner fa-spin\"/><div class=\"upload-ftp-help\">" + this.model.get("help_text") + "</div><div class=\"upload-ftp-content\"><span style=\"whitespace: nowrap; float: left;\">Available files: </span><span style=\"whitespace: nowrap; float: right;\"><span class=\"upload-icon fa fa-file-text-o\"/><span class=\"upload-ftp-number\"/>&nbsp;&nbsp;<span class=\"upload-icon fa fa-hdd-o\"/><span class=\"upload-ftp-disk\"/></span><table class=\"grid\" style=\"float: left;\"><thead><tr><th class=\"_has_collection\" style=\"display: none;\"><div class=\"upload-ftp-select-all\"></th><th>Name</th><th>Size</th><th>Created</th></tr></thead><tbody class=\"upload-ftp-body\"/></table></div><div class=\"upload-ftp-warning warningmessage\">Your FTP directory does not contain any files.</div>";
+            "<div>";
+        }
+    });
+});
 //# sourceMappingURL=../../../maps/mvc/upload/upload-ftp.js.map

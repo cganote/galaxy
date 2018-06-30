@@ -1,2 +1,44 @@
-!function(a){"function"==typeof define&&define.amd?define([],a):a(jQuery)}(function(){jQuery.fn.extend({hoverhighlight:function(a,b){return a=a||"body",this.size()?($(this).each(function(){var c=$(this),d=c.data("target");d&&c.mouseover(function(){$(d,a).css({background:b})}).mouseout(function(){$(d).css({background:""})})}),this):this}})});
+define("ui/hoverhighlight", ["jquery"], function(_jquery) {
+    "use strict";
+
+    var _jquery2 = _interopRequireDefault(_jquery);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    "use_strict";
+
+    var $ = _jquery2.default;
+    //=============================================================================
+
+    _jquery2.default.fn.extend({
+        hoverhighlight: function $hoverhighlight(scope, color) {
+            scope = scope || "body";
+            if (!this.length) {
+                return this;
+            }
+
+            $(this).each(function() {
+                var $this = $(this);
+                var targetSelector = $this.data("target");
+
+                if (targetSelector) {
+                    $this.mouseover(function(ev) {
+                        $(targetSelector, scope).css({
+                            background: color
+                        });
+                    }).mouseout(function(ev) {
+                        $(targetSelector).css({
+                            background: ""
+                        });
+                    });
+                }
+            });
+            return this;
+        }
+    });
+});
 //# sourceMappingURL=../../maps/ui/hoverhighlight.js.map

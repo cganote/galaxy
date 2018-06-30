@@ -15,28 +15,23 @@
             'lims_doc_url'              : app.config.get("lims_doc_url", "https://usegalaxy.org/u/rkchak/p/sts"),
             'biostar_url'               : app.config.biostar_url,
             'biostar_url_redirect'      : h.url_for( controller='biostar', action='biostar_redirect', qualified=True ),
-            'support_url'               : app.config.get("support_url", "https://wiki.galaxyproject.org/Support"),
-            'search_url'                : app.config.get("search_url", "http://galaxyproject.org/search/usegalaxy/"),
-            'mailing_lists'             : app.config.get("mailing_lists", "https://wiki.galaxyproject.org/MailingLists"),
+            'default_locale'            : app.config.get("default_locale",  "auto"),
+            'support_url'               : app.config.get("support_url", "https://galaxyproject.org/support"),
+            'search_url'                : app.config.get("search_url", "http://galaxyproject.org/search/"),
+            'mailing_lists'             : app.config.get("mailing_lists", "https://galaxyproject.org/mailing-lists"),
             'screencasts_url'           : app.config.get("screencasts_url", "https://vimeo.com/galaxyproject"),
-            'wiki_url'                  : app.config.get("wiki_url", "https://wiki.galaxyproject.org/"),
-            'citation_url'              : app.config.get("citation_url", "https://wiki.galaxyproject.org/CitingGalaxy"),
+            'wiki_url'                  : app.config.get("wiki_url", "https://galaxyproject.org/"),
+            'citation_url'              : app.config.get("citation_url", "https://galaxyproject.org/citing-galaxy"),
             'terms_url'                 : app.config.get("terms_url", ""),
             'allow_user_creation'       : app.config.allow_user_creation,
             'logo_url'                  : h.url_for(app.config.get( 'logo_url', '/')),
+            'logo_src'                  : h.url_for( app.config.get( 'logo_src', '/static/images/galaxyIcon_noText.png' ) ),
             'is_admin_user'             : trans.user_is_admin(),
             'active_view'               : active_view,
             'ftp_upload_dir'            : app.config.get("ftp_upload_dir",  None),
             'ftp_upload_site'           : app.config.get("ftp_upload_site",  None),
             'datatypes_disable_auto'    : app.config.get_bool("datatypes_disable_auto",  False),
-
-            ## user details
-            'user'          : {
-                'requests'  : bool(trans.user and (trans.user.requests or trans.app.security_agent.get_accessible_request_types(trans, trans.user))),
-                'email'     : escape( trans.user.email ) if (trans.user) else "",
-                'valid'     : bool(trans.user != None),
-                'json'      : get_user_dict()
-            }
+            'user_json'                 : get_user_dict()
         }
     %>
 
@@ -46,53 +41,24 @@
             Galaxy = {};
         }
 
-        ## load additional style sheet
-        if (window != window.top){
-            $('<link href="' + galaxy_config.root + 'static/style/galaxy.frame.masthead.css" rel="stylesheet">')
-                .appendTo('head');
-        }
-
-        ## load galaxy js-modules
-        require([
-            'galaxy.masthead', 'galaxy.menu', 'mvc/ui/ui-modal', 'galaxy.frame', 'mvc/upload/upload-view',
-            'mvc/user/user-model',
-            'mvc/user/user-quotameter'
-        ], function( mod_masthead, mod_menu, mod_modal, mod_frame, GalaxyUpload, user, quotameter ){
-            if( !Galaxy.currUser ){
-                // this doesn't need to wait for the page being readied
-                Galaxy.currUser = new user.User(${ h.dumps( masthead_config[ 'user' ][ 'json' ], indent=2 ) });
-            }
-
-            $(function() {
-                // check if masthead is available
-                if (Galaxy.masthead){
-                    return;
-                }
-
-                // get configuration
-                var masthead_config = ${ h.dumps( masthead_config ) };
-
-                // load global galaxy objects
-                Galaxy.masthead = new mod_masthead.GalaxyMasthead(masthead_config);
-                Galaxy.modal = new mod_modal.View();
-                Galaxy.frame = new mod_frame.GalaxyFrame();
-
-                // construct default menu options
-                Galaxy.menu = new mod_menu.GalaxyMenu({
-                    masthead: Galaxy.masthead,
-                    config: masthead_config
-                });
-                
-                // add upload plugin
-                Galaxy.upload = new GalaxyUpload(masthead_config);
-
-                // set up the quota meter (And fetch the current user data from trans)
-                // add quota meter to masthead
-                Galaxy.quotaMeter = new quotameter.UserQuotaMeter({
-                    model   : Galaxy.currUser,
-                    el      : Galaxy.masthead.$('.quota-meter-container')
-                }).render();
+        // if we're in an iframe, create styles that hide masthead/messagebox, and reset top for panels
+        // note: don't use a link to avoid roundtrip request
+        // note: we can't select here because the page (incl. messgaebox, center, etc.) isn't fully rendered
+        // TODO: remove these when we no longer navigate with iframes
+        var in_iframe = window !== window.top;
+        if( in_iframe ){
+            var styleElement = document.createElement( 'style' );
+            document.head.appendChild( styleElement );
+            [
+                '#masthead, #messagebox { display: none; }',
+                '#center, #right, #left { top: 0 !important; }',
+             ].forEach( function( rule ){
+                styleElement.sheet.insertRule( rule, 0 );
             });
+        }
+        // TODO: ?? move above to base_panels.mako?
+        $( function() {
+            window.bundleEntries.masthead(${h.dumps(masthead_config)});
         });
     </script>
 </%def>

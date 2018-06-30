@@ -1,2 +1,693 @@
-jQuery.ajaxSettings.traditional=!0,define(["mvc/grid/grid-model","mvc/grid/grid-template","mvc/ui/popup-menu"],function(a,b,c){return Backbone.View.extend({grid:null,initialize:function(a){this.setElement("#grid-container"),a.use_panels&&$("#center").css({padding:"10px",overflow:"auto"}),this.init_grid(a)},handle_refresh:function(a){a&&$.inArray("history",a)>-1&&top.Galaxy&&top.Galaxy.currHistoryPanel&&top.Galaxy.currHistoryPanel.loadCurrentHistory()},init_grid:function(c){this.grid=new a(c);var d=this.grid.attributes;this.handle_refresh(d.refresh_frames);var e=this.grid.get("url_base");if(e=e.replace(/^.*\/\/[^\/]+/,""),this.grid.set("url_base",e),this.$el.html(b.grid(d)),this.$el.find("#grid-table-header").html(b.header(d)),this.$el.find("#grid-table-body").html(b.body(d)),this.$el.find("#grid-table-footer").html(b.footer(d)),d.message){this.$el.find("#grid-message").html(b.message(d));var f=this;d.use_hide_message&&setTimeout(function(){f.$el.find("#grid-message").html("")},5e3)}this.init_grid_elements(),this.init_grid_controls(),init_refresh_on_change()},init_grid_controls:function(){var a=this;this.$el.find(".operation-button").each(function(){$(this).off(),$(this).click(function(){return a.submit_operation(this,operation.confirm),!1})}),this.$el.find("input[type=text]").each(function(){$(this).off(),$(this).click(function(){$(this).select()}).keyup(function(){$(this).css("font-style","normal")})}),this.$el.find(".sort-link").each(function(){$(this).off(),$(this).click(function(){return a.set_sort_condition($(this).attr("sort_key")),!1})}),this.$el.find(".text-filter-form").each(function(){$(this).off(),$(this).submit(function(){var b=$(this).attr("column_key"),c=$("#input-"+b+"-filter"),d=c.val();return c.val(""),a.add_filter_condition(b,d),!1})}),this.$el.find(".text-filter-val > a").each(function(){$(this).off(),$(this).click(function(){return $(this).parent().remove(),a.remove_filter_condition($(this).attr("filter_key"),$(this).attr("filter_val")),!1})}),this.$el.find(".categorical-filter > a").each(function(){$(this).off(),$(this).click(function(){return a.set_categorical_filter($(this).attr("filter_key"),$(this).attr("filter_val")),!1})});var b=this.$el.find("#input-tags-filter");b.length&&b.autocomplete(this.grid.history_tag_autocomplete_url,{selectFirst:!1,autoFill:!1,highlight:!1,mustMatch:!1});var c=this.$el.find("#input-name-filter");c.length&&c.autocomplete(this.grid.history_name_autocomplete_url,{selectFirst:!1,autoFill:!1,highlight:!1,mustMatch:!1}),this.$el.find(".advanced-search-toggle").each(function(){$(this).off(),$(this).click(function(){return a.$el.find("#standard-search").slideToggle("fast"),a.$el.find("#advanced-search").slideToggle("fast"),!1})}),this.$el.find("#check_all").off(),this.$el.find("#check_all").on("click",function(){a.check_all_items()})},init_grid_elements:function(){this.$el.find(".grid").each(function(){var a=$(this).find("input.grid-row-select-checkbox"),b=$(this).find("span.grid-selected-count"),c=function(){b.text($(a).filter(":checked").length)};$(a).each(function(){$(this).change(c)}),c()}),0!==this.$el.find(".community_rating_star").length&&this.$el.find(".community_rating_star").rating({});var a=this.grid.attributes,b=this;this.$el.find(".page-link > a").each(function(){$(this).click(function(){return b.set_page($(this).attr("page_num")),!1})}),this.$el.find(".use-inbound").each(function(){$(this).click(function(){return b.execute({href:$(this).attr("href"),inbound:!0}),!1})}),this.$el.find(".use-outbound").each(function(){$(this).click(function(){return b.execute({href:$(this).attr("href")}),!1})});var d=a.items.length;if(0!=d)for(var e in a.items){var f=a.items[e],g=this.$el.find("#grid-"+e+"-popup");g.off();var h=new c(g);for(var i in a.operations){{var j=a.operations[i],k=j.label,l=f.operation_config[k];f.encode_id}if(l.allowed&&j.allow_popup){var m={html:j.label,href:l.url_args,target:l.target,confirmation_text:j.confirm,inbound:j.inbound};m.func=function(a){a.preventDefault();var c=$(a.target).html(),d=this.findItemByHtml(c);b.execute(d)},h.addItem(m)}}}},add_filter_condition:function(a,c){if(""===c)return!1;this.grid.add_filter(a,c,!0);var d=$(b.filter_element(a,c)),e=this;d.click(function(){$(this).remove(),e.remove_filter_condition(a,c)});var f=this.$el.find("#"+a+"-filtering-criteria");f.append(d),this.go_page_one(),this.execute()},remove_filter_condition:function(a,b){this.grid.remove_filter(a,b),this.go_page_one(),this.execute()},set_sort_condition:function(a){var b=this.grid.get("sort_key"),c=a;-1!==b.indexOf(a)&&"-"!==b.substring(0,1)&&(c="-"+a),this.$el.find(".sort-arrow").remove();var d="-"==c.substring(0,1)?"&uarr;":"&darr;",e=$("<span>"+d+"</span>").addClass("sort-arrow");this.$el.find("#"+a+"-header").append(e),this.grid.set("sort_key",c),this.go_page_one(),this.execute()},set_categorical_filter:function(a,b){var c=this.grid.get("categorical_filters")[a],d=this.grid.get("filters")[a],e=this;this.$el.find("."+a+"-filter").each(function(){var f=$.trim($(this).text()),g=c[f],h=g[a];if(h==b)$(this).empty(),$(this).addClass("current-filter"),$(this).append(f);else if(h==d){$(this).empty();var i=$('<a href="#">'+f+"</a>");i.click(function(){e.set_categorical_filter(a,h)}),$(this).removeClass("current-filter"),$(this).append(i)}}),this.grid.add_filter(a,b),this.go_page_one(),this.execute()},set_page:function(a){var b=this;this.$el.find(".page-link").each(function(){var c,d=$(this).attr("id"),e=parseInt(d.split("-")[2],10),f=b.grid.get("cur_page");if(e===a)c=$(this).children().text(),$(this).empty(),$(this).addClass("inactive-link"),$(this).text(c);else if(e===f){c=$(this).text(),$(this).empty(),$(this).removeClass("inactive-link");var g=$('<a href="#">'+c+"</a>");g.click(function(){b.set_page(e)}),$(this).append(g)}}),"all"===a?this.grid.set("cur_page",a):this.grid.set("cur_page",parseInt(a,10)),this.execute()},submit_operation:function(a,b){var c=$(a).val(),d=this.$el.find('input[name="id"]:checked').length;if(!d>0)return!1;var e=[];return this.$el.find("input[name=id]:checked").each(function(){e.push($(this).val())}),this.execute({operation:c,id:e,confirmation_text:b}),!0},check_all_items:function(){var a,b=document.getElementById("check_all"),c=document.getElementsByTagName("input"),d=0;if(b.checked===!0)for(a=0;a<c.length;a++)-1!==c[a].name.indexOf("id")&&(c[a].checked=!0,d++);else for(a=0;a<c.length;a++)-1!==c[a].name.indexOf("id")&&(c[a].checked=!1);this.init_grid_elements()},go_page_one:function(){var a=this.grid.get("cur_page");null!==a&&void 0!==a&&"all"!==a&&this.grid.set("cur_page",1)},execute:function(a){var b=null,c=null,d=null,e=null,f=null;if(a&&(c=a.href,d=a.operation,b=a.id,e=a.confirmation_text,f=a.inbound,void 0!==c&&-1!=c.indexOf("operation="))){var g=c.split("?");if(g.length>1)for(var h=g[1],i=h.split("&"),j=0;j<i.length;j++)-1!=i[j].indexOf("operation")?(d=i[j].split("=")[1],d=d.replace(/\+/g," ")):-1!=i[j].indexOf("id")&&(b=i[j].split("=")[1])}return d&&b?e&&""!=e&&"None"!=e&&"null"!=e&&!confirm(e)?!1:(d=d.toLowerCase(),this.grid.set({operation:d,item_ids:b}),this.grid.can_async_op(d)?this.update_grid():this.go_to(f,c),!1):c?(this.go_to(f,c),!1):(this.grid.get("async")?this.update_grid():this.go_to(f,c),!1)},go_to:function(a,b){var c=this.grid.get("async");if(this.grid.set("async",!1),advanced_search=this.$el.find("#advanced-search").is(":visible"),this.grid.set("advanced_search",advanced_search),b||(b=this.grid.get("url_base")+"?"+$.param(this.grid.get_url_data())),this.grid.set({operation:void 0,item_ids:void 0,async:c}),a){var d=$(".grid-header").closest(".inbound");if(0!==d.length)return void d.load(b)}window.location=b},update_grid:function(){var a=this.grid.get("operation")?"POST":"GET";this.$el.find(".loading-elt-overlay").show();var b=this;$.ajax({type:a,url:b.grid.get("url_base"),data:b.grid.get_url_data(),error:function(){alert("Grid refresh failed")},success:function(a){var c=b.grid.get("embedded"),d=b.grid.get("insert"),e=$.parseJSON(a);e.embedded=c,e.insert=d,b.init_grid(e),b.$el.find(".loading-elt-overlay").hide()},complete:function(){b.grid.set({operation:void 0,item_ids:void 0})}})}})});
+define("mvc/grid/grid-view", ["exports", "backbone", "underscore", "utils/utils", "mvc/grid/grid-model", "mvc/grid/grid-template", "mvc/ui/popup-menu", "ui/loading-indicator"], function(exports, _backbone, _underscore, _utils, _gridModel, _gridTemplate, _popupMenu, _loadingIndicator) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var Backbone = _interopRequireWildcard(_backbone);
+
+    var _ = _interopRequireWildcard(_underscore);
+
+    var _utils2 = _interopRequireDefault(_utils);
+
+    var _gridModel2 = _interopRequireDefault(_gridModel);
+
+    var _gridTemplate2 = _interopRequireDefault(_gridTemplate);
+
+    var _popupMenu2 = _interopRequireDefault(_popupMenu);
+
+    var _loadingIndicator2 = _interopRequireDefault(_loadingIndicator);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    function _interopRequireWildcard(obj) {
+        if (obj && obj.__esModule) {
+            return obj;
+        } else {
+            var newObj = {};
+
+            if (obj != null) {
+                for (var key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key];
+                }
+            }
+
+            newObj.default = obj;
+            return newObj;
+        }
+    }
+
+    /* global $ */
+    // This is necessary so that, when nested arrays are used in ajax/post/get methods, square brackets ('[]') are
+    // not appended to the identifier of a nested array.
+    $.ajaxSettings.traditional = true;
+
+    // grid view
+    exports.default = Backbone.View.extend({
+        // model
+        grid: null,
+
+        // Initialize
+        initialize: function initialize(grid_config) {
+            this.grid = new _gridModel2.default();
+            this.title = grid_config.title;
+            this.active_tab = grid_config.active_tab;
+            var self = this;
+            window.add_tag_to_grid_filter = function(tag_name, tag_value) {
+                // Put tag name and value together.
+                var tag = tag_name + (tag_value !== undefined && tag_value !== "" ? ":" + tag_value : "");
+                var advanced_search = $("#advanced-search").is(":visible");
+                if (!advanced_search) {
+                    $("#standard-search").slideToggle("fast");
+                    $("#advanced-search").slideToggle("fast");
+                }
+                self.add_filter_condition("tags", tag);
+            };
+
+            if (grid_config.url_base && !grid_config.items) {
+                _loadingIndicator2.default.markViewAsLoading(this);
+                var url_data = grid_config.url_data || {};
+                _.each(grid_config.filters, function(v, k) {
+                    url_data["f-" + k] = v;
+                });
+                $.ajax({
+                    url: grid_config.url_base + "?" + $.param(url_data),
+                    success: function success(response) {
+                        response.embedded = grid_config.embedded;
+                        response.filters = grid_config.filters || {};
+                        self.init_grid(response);
+                    }
+                });
+            } else {
+                // set element
+                this.setElement("<div>");
+                this.init_grid(grid_config);
+            }
+
+            // fix padding
+            if (grid_config.use_panels) {
+                $("#center").css({
+                    padding: "10px",
+                    overflow: "auto"
+                });
+            }
+        },
+
+        // refresh frames
+        handle_refresh: function handle_refresh(refresh_frames) {
+            if (refresh_frames) {
+                if ($.inArray("history", refresh_frames) > -1) {
+                    if (window.top.Galaxy && window.top.Galaxy.currHistoryPanel) {
+                        window.top.Galaxy.currHistoryPanel.loadCurrentHistory();
+                    }
+                }
+            }
+        },
+
+        // Initialize
+        init_grid: function init_grid(grid_config) {
+            this.grid.set(grid_config);
+
+            // get options
+            var options = this.grid.attributes;
+
+            if (this.allow_title_display && options.title) {
+                _utils2.default.setWindowTitle(options.title);
+            }
+            // handle refresh requests
+            this.handle_refresh(options.refresh_frames);
+
+            // strip protocol and domain
+            var url = this.grid.get("url_base");
+            url = url.replace(/^.*\/\/[^\/]+/, "");
+            this.grid.set("url_base", url);
+
+            // append main template
+            this.$el.html(_gridTemplate2.default.grid(options));
+
+            // update div contents
+            this.$el.find("#grid-table-header").html(_gridTemplate2.default.header(options));
+            this.$el.find("#grid-table-body").html(_gridTemplate2.default.body(options));
+            this.$el.find("#grid-table-footer").html(_gridTemplate2.default.footer(options));
+
+            // update message
+            if (options.message) {
+                this.$el.find("#grid-message").html(_gridTemplate2.default.message(options));
+                var self = this;
+                if (options.use_hide_message) {
+                    window.setTimeout(function() {
+                        self.$el.find("#grid-message").html("");
+                    }, 5000);
+                }
+            }
+
+            // configure elements
+            this.init_grid_elements();
+            this.init_grid_controls();
+
+            // attach global event handler
+            // TODO: redundant (the onload/standard page handlers do this) - but needed because these are constructed after page ready
+            if (window.init_refresh_on_change) {
+                window.init_refresh_on_change();
+            }
+        },
+
+        // Initialize grid controls
+        init_grid_controls: function init_grid_controls() {
+            // link
+            var self = this;
+
+            // Initialize grid operation button.
+            this.$el.find(".operation-button").each(function() {
+                $(this).off();
+                $(this).click(function() {
+                    self.submit_operation(this);
+                    return false;
+                });
+            });
+
+            // Initialize text filters to select text on click and use normal font when user is typing.
+            this.$el.find("input[type=text]").each(function() {
+                $(this).off();
+                $(this).click(function() {
+                    $(this).select();
+                }).keyup(function() {
+                    $(this).css("font-style", "normal");
+                });
+            });
+
+            // Initialize sort links.
+            this.$el.find(".sort-link").each(function() {
+                $(this).off();
+                $(this).click(function() {
+                    self.set_sort_condition($(this).attr("sort_key"));
+                    return false;
+                });
+            });
+
+            // Initialize text filters.
+            this.$el.find(".text-filter-form").each(function() {
+                $(this).off();
+                $(this).submit(function() {
+                    var column_key = $(this).attr("column_key");
+                    var text_input_obj = $("#input-" + column_key + "-filter");
+                    var text_input = text_input_obj.val();
+                    text_input_obj.val("");
+                    self.add_filter_condition(column_key, text_input);
+                    return false;
+                });
+            });
+
+            // Initialize categorical filters.
+            this.$el.find(".text-filter-val > a").each(function() {
+                $(this).off();
+                $(this).click(function() {
+                    // Remove visible element.
+                    $(this).parent().remove();
+
+                    // Remove filter condition.
+                    self.remove_filter_condition($(this).attr("filter_key"), $(this).attr("filter_val"));
+
+                    // Return
+                    return false;
+                });
+            });
+
+            // Initialize categorical filters.
+            this.$el.find(".categorical-filter > a").each(function() {
+                $(this).off();
+                $(this).click(function() {
+                    self.set_categorical_filter($(this).attr("filter_key"), $(this).attr("filter_val"));
+                    return false;
+                });
+            });
+
+            // Initialize standard, advanced search toggles.
+            this.$el.find(".advanced-search-toggle").each(function() {
+                $(this).off();
+                $(this).click(function() {
+                    self.$el.find("#standard-search").slideToggle("fast");
+                    self.$el.find("#advanced-search").slideToggle("fast");
+                    return false;
+                });
+            });
+
+            // Add event to check all box
+            this.$el.find("#check_all").off();
+            this.$el.find("#check_all").on("click", function() {
+                self.check_all_items();
+            });
+        },
+
+        // Initialize grid elements.
+        init_grid_elements: function init_grid_elements() {
+            // Initialize grid selection checkboxes.
+            this.$el.find(".grid").each(function() {
+                var checkboxes = $(this).find("input.grid-row-select-checkbox");
+                var check_count = $(this).find("span.grid-selected-count");
+                var update_checked = function update_checked() {
+                    check_count.text($(checkboxes).filter(":checked").length);
+                };
+
+                $(checkboxes).each(function() {
+                    $(this).change(update_checked);
+                });
+                update_checked();
+            });
+
+            // Initialize ratings.
+            if (this.$el.find(".community_rating_star").length !== 0) this.$el.find(".community_rating_star").rating({});
+
+            // get options
+            var options = this.grid.attributes;
+            var self = this;
+
+            //
+            // add page click events
+            //
+            this.$el.find(".page-link-grid > a").each(function() {
+                $(this).click(function() {
+                    self.set_page($(this).attr("page_num"));
+                    return false;
+                });
+            });
+
+            //
+            // add inbound/outbound events
+            //
+            this.$el.find(".use-target").each(function() {
+                $(this).click(function() {
+                    self.execute({
+                        href: $(this).attr("href"),
+                        target: $(this).attr("target")
+                    });
+                    return false;
+                });
+            });
+
+            // empty grid?
+            var items_length = options.items.length;
+            if (items_length === 0) {
+                return;
+            }
+
+            // add operation popup menus
+            _.each(options.items, function(item, index) {
+                var button = self.$("#grid-" + item.encode_id + "-popup").off();
+                var popup = new _popupMenu2.default(button);
+                _.each(options.operations, function(operation) {
+                    self.add_operation(popup, operation, item);
+                });
+            });
+        },
+
+        /** Add an operation to the items menu */
+        add_operation: function add_operation(popup, operation, item) {
+            var self = this;
+            var settings = item.operation_config[operation.label];
+            if (settings.allowed && operation.allow_popup) {
+                popup.addItem({
+                    html: operation.label,
+                    href: settings.url_args,
+                    target: settings.target,
+                    confirmation_text: operation.confirm,
+                    func: function func(e) {
+                        e.preventDefault();
+                        var label = $(e.target).html();
+                        if (operation.onclick) {
+                            operation.onclick(item.encode_id);
+                        } else {
+                            self.execute(this.findItemByHtml(label));
+                        }
+                    }
+                });
+            }
+        },
+
+        // Add a condition to the grid filter; this adds the condition and refreshes the grid.
+        add_filter_condition: function add_filter_condition(name, value) {
+            // Do nothing is value is empty.
+            if (value === "") {
+                return false;
+            }
+
+            // Add condition to grid.
+            this.grid.add_filter(name, value, true);
+
+            // Add button that displays filter and provides a button to delete it.
+            var t = $(_gridTemplate2.default.filter_element(name, value));
+            var self = this;
+            t.click(function() {
+                // Remove visible element.
+                $(this).remove();
+
+                // Remove filter condition.
+                self.remove_filter_condition(name, value);
+            });
+
+            // append to container
+            var container = this.$el.find("#" + name + "-filtering-criteria");
+            container.append(t);
+
+            // execute
+            this.go_page_one();
+            this.execute();
+        },
+
+        // Remove a condition to the grid filter; this adds the condition and refreshes the grid.
+        remove_filter_condition: function remove_filter_condition(name, value) {
+            // Remove filter condition.
+            this.grid.remove_filter(name, value);
+
+            // Execute
+            this.go_page_one();
+            this.execute();
+        },
+
+        // Set sort condition for grid.
+        set_sort_condition: function set_sort_condition(col_key) {
+            // Set new sort condition. New sort is col_key if sorting new column; if reversing sort on
+            // currently sorted column, sort is reversed.
+            var cur_sort = this.grid.get("sort_key");
+            var new_sort = col_key;
+            if (cur_sort.indexOf(col_key) !== -1) {
+                // Reverse sort.
+                if (cur_sort.substring(0, 1) !== "-") {
+                    new_sort = "-" + col_key;
+                }
+            }
+
+            // Remove sort arrows elements.
+            this.$el.find(".sort-arrow").remove();
+
+            // Add sort arrow element to new sort column.
+            var sort_arrow = new_sort.substring(0, 1) == "-" ? "&uarr;" : "&darr;";
+            var t = $("<span>" + sort_arrow + "</span>").addClass("sort-arrow");
+
+            // Add to header
+            this.$el.find("#" + col_key + "-header").append(t);
+
+            // Update grid.
+            this.grid.set("sort_key", new_sort);
+            this.go_page_one();
+            this.execute();
+        },
+
+        // Set new value for categorical filter.
+        set_categorical_filter: function set_categorical_filter(name, new_value) {
+            // Update filter hyperlinks to reflect new filter value.
+            var category_filter = this.grid.get("categorical_filters")[name];
+
+            var cur_value = this.grid.get("filters")[name];
+            var self = this;
+            this.$el.find("." + name + "-filter").each(function() {
+                var text = $.trim($(this).text());
+                var filter = category_filter[text];
+                var filter_value = filter[name];
+                if (filter_value == new_value) {
+                    // Remove filter link since grid will be using this filter. It is assumed that
+                    // this element has a single child, a hyperlink/anchor with text.
+                    $(this).empty();
+                    $(this).addClass("current-filter");
+                    $(this).append(text);
+                } else if (filter_value == cur_value) {
+                    // Add hyperlink for this filter since grid will no longer be using this filter. It is assumed that
+                    // this element has a single child, a hyperlink/anchor.
+                    $(this).empty();
+                    var t = $("<a href=\"#\">" + text + "</a>");
+                    t.click(function() {
+                        self.set_categorical_filter(name, filter_value);
+                    });
+                    $(this).removeClass("current-filter");
+                    $(this).append(t);
+                }
+            });
+
+            // Update grid.
+            this.grid.add_filter(name, new_value);
+            this.go_page_one();
+            this.execute();
+        },
+
+        // Set page to view.
+        set_page: function set_page(new_page) {
+            // Update page hyperlink to reflect new page.
+            var self = this;
+            this.$el.find(".page-link").each(function() {
+                var id = $(this).attr("id");
+
+                var // Id has form 'page-link-<page_num>
+                    page_num = parseInt(id.split("-")[2], 10);
+
+                var cur_page = self.grid.get("cur_page");
+                var text;
+                if (page_num === new_page) {
+                    // Remove link to page since grid will be on this page. It is assumed that
+                    // this element has a single child, a hyperlink/anchor with text.
+                    text = $(this).children().text();
+                    $(this).empty();
+                    $(this).addClass("inactive-link");
+                    $(this).text(text);
+                } else if (page_num === cur_page) {
+                    // Add hyperlink to this page since grid will no longer be on this page. It is assumed that
+                    // this element has a single child, a hyperlink/anchor.
+                    text = $(this).text();
+                    $(this).empty();
+                    $(this).removeClass("inactive-link");
+                    var t = $("<a href=\"#\">" + text + "</a>");
+                    t.click(function() {
+                        self.set_page(page_num);
+                    });
+                    $(this).append(t);
+                }
+            });
+
+            if (new_page === "all") {
+                this.grid.set("cur_page", new_page);
+            } else {
+                this.grid.set("cur_page", parseInt(new_page, 10));
+            }
+            this.execute();
+        },
+
+        // confirmation/submission of operation request
+        submit_operation: function submit_operation(operation_button, confirmation_text) {
+            // identify operation
+            var operation_name = $(operation_button).val();
+
+            // verify any item is selected
+            var number_of_checked_ids = this.$el.find('input[name="id"]:checked').length;
+            if (number_of_checked_ids < 1) {
+                return false;
+            }
+
+            // Check to see if there's grid confirmation text for this operation
+            var operation = _.findWhere(this.grid.attributes.operations, {
+                label: operation_name
+            });
+            if (operation && !confirmation_text) {
+                confirmation_text = operation.confirm || "";
+            }
+
+            // collect ids
+            var item_ids = [];
+            this.$el.find("input[name=id]:checked").each(function() {
+                item_ids.push($(this).val());
+            });
+
+            // execute operation
+            var options = {
+                operation: operation_name,
+                id: item_ids,
+                confirmation_text: confirmation_text
+            };
+            if (operation.target == "top" || operation.target == "center") {
+                options = _.extend(options, {
+                    href: operation.href,
+                    target: operation.target
+                });
+            }
+            this.execute(options);
+            return true;
+        },
+
+        check_all_items: function check_all_items() {
+            var check = this.$(".grid-row-select-checkbox");
+            var state = this.$("#check_all").prop("checked");
+            _.each(check, function(c) {
+                $(c).prop("checked", state);
+            });
+            this.init_grid_elements();
+        },
+
+        // Go back to page one; this is useful when a filter is applied.
+        go_page_one: function go_page_one() {
+            // Need to go back to page 1 if not showing all.
+            var cur_page = this.grid.get("cur_page");
+            if (cur_page !== null && cur_page !== undefined && cur_page !== "all") {
+                this.grid.set("cur_page", 1);
+            }
+        },
+
+        //
+        // execute operations and hyperlink requests
+        //
+        execute: function execute(options) {
+            // get url
+            var id = null;
+            var href = null;
+            var operation = null;
+            var confirmation_text = null;
+            var target = null;
+
+            // check for options
+            if (options) {
+                // get options
+                href = options.href;
+                operation = options.operation;
+                id = options.id;
+                confirmation_text = options.confirmation_text;
+                target = options.target;
+
+                // check if input contains the operation tag
+                if (href !== undefined && href.indexOf("operation=") != -1) {
+                    // Get operation, id in hyperlink's href.
+                    var href_parts = href.split("?");
+                    if (href_parts.length > 1) {
+                        var href_parms_str = href_parts[1];
+                        var href_parms = href_parms_str.split("&");
+                        for (var index = 0; index < href_parms.length; index++) {
+                            if (href_parms[index].indexOf("operation") != -1) {
+                                // Found operation parm; get operation value.
+                                operation = href_parms[index].split("=")[1];
+                                operation = operation.replace(/\+/g, " ");
+                            } else if (href_parms[index].indexOf("id") != -1) {
+                                // Found id parm; get id value.
+                                id = href_parms[index].split("=")[1];
+                            }
+                        }
+                    }
+                }
+            }
+
+            // check for operation details
+            if (operation && id) {
+                // show confirmation box
+                if (confirmation_text && confirmation_text !== "" && confirmation_text != "None" && confirmation_text != "null")
+                    if (!window.confirm(confirmation_text)) return false;
+
+                // use small characters for operation?!
+                operation = operation.toLowerCase();
+
+                // Update grid.
+                this.grid.set({
+                    operation: operation,
+                    item_ids: id
+                });
+
+                // Do operation. If operation cannot be performed asynchronously, redirect to location.
+                if (target == "top") {
+                    window.top.location = href + "?" + $.param(this.grid.get_url_data());
+                } else if (target == "center") {
+                    $("#galaxy_main").attr("src", href + "?" + $.param(this.grid.get_url_data()));
+                } else {
+                    this.update_grid();
+                }
+
+                // done
+                return false;
+            }
+
+            // refresh grid
+            if (href) {
+                this.go_to(target, href);
+                return false;
+            }
+
+            // refresh grid
+            this.update_grid();
+
+            // done
+            return false;
+        },
+
+        // go to url
+        go_to: function go_to(target, href) {
+            // get slide status
+            var advanced_search = this.$el.find("#advanced-search").is(":visible");
+            this.grid.set("advanced_search", advanced_search);
+
+            // get default url
+            if (!href) {
+                href = this.grid.get("url_base") + "?" + $.param(this.grid.get_url_data());
+            }
+
+            // clear grid of transient request attributes.
+            this.grid.set({
+                operation: undefined,
+                item_ids: undefined
+            });
+            switch (target) {
+                case "center":
+                    $("#galaxy_main").attr("src", href);
+                    break;
+                case "top":
+                    window.top.location = href;
+                    break;
+                default:
+                    window.location = href;
+            }
+        },
+
+        // Update grid.
+        update_grid: function update_grid() {
+            // If there's an operation, do POST; otherwise, do GET.
+            var method = this.grid.get("operation") ? "POST" : "GET";
+
+            // Show overlay to indicate loading and prevent user actions.
+            this.$el.find(".loading-elt-overlay").show();
+            var self = this;
+            $.ajax({
+                type: method,
+                url: self.grid.get("url_base"),
+                data: self.grid.get_url_data(),
+                error: function error() {
+                    alert("Grid refresh failed");
+                },
+                success: function success(response_text) {
+                    // backup
+                    var embedded = self.grid.get("embedded");
+                    var insert = self.grid.get("insert");
+                    var advanced_search = self.$el.find("#advanced-search").is(":visible");
+
+                    // request new configuration
+                    var json = response_text;
+
+                    // update
+                    json.embedded = embedded;
+                    json.insert = insert;
+                    json.advanced_search = advanced_search;
+
+                    // Initialize new grid config
+                    self.init_grid(json);
+
+                    // Hide loading overlay.
+                    self.$el.find(".loading-elt-overlay").hide();
+                },
+                complete: function complete() {
+                    // Clear grid of transient request attributes.
+                    self.grid.set({
+                        operation: undefined,
+                        item_ids: undefined
+                    });
+                }
+            });
+        }
+    });
+});
 //# sourceMappingURL=../../../maps/mvc/grid/grid-view.js.map

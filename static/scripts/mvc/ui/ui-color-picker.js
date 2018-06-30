@@ -1,2 +1,149 @@
-define(["utils/utils","mvc/ui/ui-misc"],function(a){return Backbone.View.extend({colors:{standard:["c00000","ff0000","ffc000","ffff00","92d050","00b050","00b0f0","0070c0","002060","7030a0"],base:["ffffff","000000","eeece1","1f497d","4f81bd","c0504d","9bbb59","8064a2","4bacc6","f79646"],theme:[["f2f2f2","7f7f7f","ddd9c3","c6d9f0","dbe5f1","f2dcdb","ebf1dd","e5e0ec","dbeef3","fdeada"],["d8d8d8","595959","c4bd97","8db3e2","b8cce4","e5b9b7","d7e3bc","ccc1d9","b7dde8","fbd5b5"],["bfbfbf","3f3f3f","938953","548dd4","95b3d7","d99694","c3d69b","b2a2c7","92cddc","fac08f"],["a5a5a5","262626","494429","17365d","366092","953734","76923c","5f497a","31859b","e36c09"],["7f7f7e","0c0c0c","1d1b10","0f243e","244061","632423","4f6128","3f3151","205867","974806"]]},optionsDefault:{},initialize:function(b){this.options=a.merge(b,this.optionsDefault),this.setElement(this._template()),this.$panel=this.$(".ui-color-picker-panel"),this.$view=this.$(".ui-color-picker-view"),this.$value=this.$(".ui-color-picker-value"),this.$header=this.$(".ui-color-picker-header"),this._build(),this.visible=!1,this.value(this.options.value),this.$boxes=this.$(".ui-color-picker-box");var c=this;this.$boxes.on("click",function(){c.value($(this).css("background-color")),c.$header.trigger("click")}),this.$header.on("click",function(){c.visible=!c.visible,c.visible?c.$view.fadeIn("fast"):c.$view.fadeOut("fast")})},value:function(a){return void 0!==a&&null!==a&&(this.$value.css("background-color",a),this.$(".ui-color-picker-box").empty(),this.$(this._getValue()).html(this._templateCheck()),this.options.onchange&&this.options.onchange(a)),this._getValue()},_getValue:function(){function a(a){return("0"+parseInt(a).toString(16)).slice(-2)}var b=this.$value.css("background-color");return b=b.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/),b?"#"+a(b[1])+a(b[2])+a(b[3]):null},_build:function(){this._content({label:"Theme Colors",colors:this.colors.base,padding:10});for(var a in this.colors.theme){var b={};0==a?b.bottom=!0:a!=this.colors.theme.length-1?(b.top=!0,b.bottom=!0):(b.top=!0,b.padding=5),b.colors=this.colors.theme[a],this._content(b)}this._content({label:"Standard Colors",colors:this.colors.standard,padding:5})},_content:function(a){var b=(a.label,a.colors),c=a.padding,d=a.top,e=a.bottom,f=$(this._templateContent()),g=f.find(".label");a.label?g.html(a.label):g.hide();var h=f.find(".line");this.$panel.append(f);for(var i in b){var j=$(this._templateBox(b[i]));d&&(j.css("border-top","none"),j.css("border-top-left-radius","0px"),j.css("border-top-right-radius","0px")),e&&(j.css("border-bottom","none"),j.css("border-bottom-left-radius","0px"),j.css("border-bottom-right-radius","0px")),h.append(j)}return c&&h.css("padding-bottom",c),f},_templateCheck:function(){return'<div class="ui-color-picker-check fa fa-check"/>'},_templateContent:function(){return'<div class="ui-color-picker-content"><div class="label"/><div class="line"/></div>'},_templateBox:function(a){return'<div id="'+a+'" class="ui-color-picker-box" style="background-color: #'+a+';"/>'},_template:function(){return'<div class="ui-color-picker"><div class="ui-color-picker-header"><div class="ui-color-picker-value"/><div class="ui-color-picker-label">Select a color</div></div><div class="ui-color-picker-view ui-input"><div class="ui-color-picker-panel"/></div>'}})});
+define("mvc/ui/ui-color-picker", ["exports", "utils/utils"], function(exports, _utils) {
+    "use strict";
+
+    Object.defineProperty(exports, "__esModule", {
+        value: true
+    });
+
+    var _utils2 = _interopRequireDefault(_utils);
+
+    function _interopRequireDefault(obj) {
+        return obj && obj.__esModule ? obj : {
+            default: obj
+        };
+    }
+
+    exports.default = Backbone.View.extend({
+        colors: {
+            standard: ["c00000", "ff0000", "ffc000", "ffff00", "92d050", "00b050", "00b0f0", "0070c0", "002060", "7030a0"],
+            base: ["ffffff", "000000", "eeece1", "1f497d", "4f81bd", "c0504d", "9bbb59", "8064a2", "4bacc6", "f79646"],
+            theme: [
+                ["f2f2f2", "7f7f7f", "ddd9c3", "c6d9f0", "dbe5f1", "f2dcdb", "ebf1dd", "e5e0ec", "dbeef3", "fdeada"],
+                ["d8d8d8", "595959", "c4bd97", "8db3e2", "b8cce4", "e5b9b7", "d7e3bc", "ccc1d9", "b7dde8", "fbd5b5"],
+                ["bfbfbf", "3f3f3f", "938953", "548dd4", "95b3d7", "d99694", "c3d69b", "b2a2c7", "92cddc", "fac08f"],
+                ["a5a5a5", "262626", "494429", "17365d", "366092", "953734", "76923c", "5f497a", "31859b", "e36c09"],
+                ["7f7f7e", "0c0c0c", "1d1b10", "0f243e", "244061", "632423", "4f6128", "3f3151", "205867", "974806"]
+            ]
+        },
+
+        initialize: function initialize(options) {
+            this.options = _utils2.default.merge(options, {});
+            this.setElement(this._template());
+            this.$panel = this.$(".ui-color-picker-panel");
+            this.$view = this.$(".ui-color-picker-view");
+            this.$value = this.$(".ui-color-picker-value");
+            this.$header = this.$(".ui-color-picker-header");
+            this._build();
+            this.visible = false;
+            this.value(this.options.value);
+            this.$boxes = this.$(".ui-color-picker-box");
+            var self = this;
+            this.$boxes.on("click", function() {
+                self.value($(this).css("background-color"));
+                self.$header.trigger("click");
+            });
+            this.$header.on("click", function() {
+                self.visible = !self.visible;
+                if (self.visible) {
+                    self.$view.fadeIn("fast");
+                } else {
+                    self.$view.fadeOut("fast");
+                }
+            });
+        },
+
+        /** Get/set value */
+        value: function value(new_val) {
+            if (new_val !== undefined && new_val !== null) {
+                this.$value.css("background-color", new_val);
+                this.$(".ui-color-picker-box").empty();
+                this.$(this._getValue()).html(this._templateCheck());
+                this.options.onchange && this.options.onchange(new_val);
+            }
+            return this._getValue();
+        },
+
+        /** Get value from dom */
+        _getValue: function _getValue() {
+            var rgb = this.$value.css("background-color");
+            rgb = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+            if (rgb) {
+                var hex = function hex(x) {
+                    return ("0" + parseInt(x).toString(16)).slice(-2);
+                };
+
+                return "#" + hex(rgb[1]) + hex(rgb[2]) + hex(rgb[3]);
+            } else {
+                return null;
+            }
+        },
+
+        /** Build color panel */
+        _build: function _build() {
+            this._content({
+                colors: this.colors.base
+            });
+            for (var i in this.colors.theme) {
+                var line_def = {};
+                if (i == 0) {
+                    line_def["bottom"] = true;
+                } else if (i != this.colors.theme.length - 1) {
+                    line_def["top"] = true;
+                    line_def["bottom"] = true;
+                } else {
+                    line_def["top"] = true;
+                }
+                line_def["colors"] = this.colors.theme[i];
+                this._content(line_def);
+            }
+            this._content({
+                colors: this.colors.standard
+            });
+        },
+
+        /** Create content */
+        _content: function _content(options) {
+            var colors = options.colors;
+            var $content = $(this._templateContent());
+            var $line = $content.find(".line");
+            this.$panel.append($content);
+            for (var i in colors) {
+                var $box = $(this._templateBox(colors[i]));
+                if (options.top) {
+                    $box.css("border-top", "none");
+                    $box.css("border-top-left-radius", "0px");
+                    $box.css("border-top-right-radius", "0px");
+                }
+                if (options.bottom) {
+                    $box.css("border-bottom", "none");
+                    $box.css("border-bottom-left-radius", "0px");
+                    $box.css("border-bottom-right-radius", "0px");
+                }
+                $line.append($box);
+            }
+            return $content;
+        },
+
+        /** Check icon */
+        _templateCheck: function _templateCheck() {
+            return '<div class="ui-color-picker-check fa fa-check"/>';
+        },
+
+        /** Content template */
+        _templateContent: function _templateContent() {
+            return '<div class="ui-color-picker-content">' + '<div class="line"/>' + "</div>";
+        },
+
+        /** Box template */
+        _templateBox: function _templateBox(color) {
+            return "<div id=\"" + color + "\" class=\"ui-color-picker-box\" style=\"background-color: #" + color + ";\"/>";
+        },
+
+        /** Main template */
+        _template: function _template() {
+            return '<div class="ui-color-picker">' + '<div class="ui-color-picker-header">' + '<div class="ui-color-picker-value"/>' + '<div class="ui-color-picker-label">Select a color</div>' + "</div>" + '<div class="ui-color-picker-view ui-input">' + '<div class="ui-color-picker-panel"/>' + "</div>";
+            "</div>";
+        }
+    });
+});
 //# sourceMappingURL=../../../maps/mvc/ui/ui-color-picker.js.map

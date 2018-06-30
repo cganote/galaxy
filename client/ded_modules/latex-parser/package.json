@@ -1,0 +1,63 @@
+{
+  "name": "latex-parser",
+  "version": "0.6.2",
+  "description": "LaTeX parser",
+  "keywords": [
+    "LaTeX",
+    "TeX",
+    "parser",
+    "typescript",
+    "javascript",
+    "syntax tree",
+    "ast"
+  ],
+  "homepage": "https://github.com/digitalheir/latex-parser",
+  "bugs": {
+    "url": "https://github.com/digitalheir/latex-parser/issues",
+    "email": "maartentrompper@freedom.nl"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Maarten Trompper",
+    "email": "maartentrompper@freedom.nl",
+    "url": "https://github.com/digitalheir"
+  },
+  "contributors": [
+    {
+      "name": "Maarten Trompper",
+      "email": "maartentrompper@freedom.nl"
+    }
+  ],
+  "main": "main.js",
+  "types": "main.d.ts",
+  "repository": "git@github.com:digitalheir/latex-parser.git",
+  "dependencies": {
+    "parsimmon": "^1.6.2"
+  },
+  "devDependencies": {
+    "typings": "^2.1.1",
+    "@types/chai": "^4.0.0",
+    "@types/mocha": "^2.2.41",
+    "@types/parsimmon": "^1.3.0",
+    "awesome-typescript-loader": "^3.1.3",
+    "babel-cli": "^6.14.0",
+    "babel-core": "^6.24.1",
+    "babel-loader": "^7.0.0",
+    "babel-preset-es2015": "^6.14.0",
+    "chai": "^4.0.2",
+    "mocha": "^3.4.2",
+    "parsimmon": "^1.4.0",
+    "ts-node": "^3.0.6",
+    "tslint": "^5.4.3",
+    "tslint-loader": "^3.5.3",
+    "typescript": "^2.3.4",
+    "webpack": "^3.1.0"
+  },
+  "scripts": {
+    "p": "ts-node parjstest.ts",
+    "build": "npm run build:min",
+    "build:min": "webpack -p",
+    "build:ts": "tsc",
+    "test": "mocha --compilers ts:ts-node/register,tsx:ts-node/register **/*.spec.ts"
+  }
+}
