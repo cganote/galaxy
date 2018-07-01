@@ -1,2 +1,0 @@
-""" Work with Galaxy metadata
-"""
