@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-#By, Guruprasad Ananda.
+# By, Guruprasad Ananda.
+from __future__ import print_function
 
 import optparse
 import re
+
 
 def __main__():
     parser = optparse.OptionParser()
@@ -41,11 +43,12 @@ def __main__():
                     line = line.rstrip('\n')
                 try:
                     fout.write("%s\n" % (re.sub(from_ch, '\t', line)))
-                except:
+                except Exception:
                     skipped += 1
 
     if skipped:
-        print "Skipped %d lines as invalid." % skipped
+        print("Skipped %d lines as invalid." % skipped)
+
 
 if __name__ == "__main__":
     __main__()

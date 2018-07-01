@@ -7,7 +7,7 @@
     ${render_msg( message, status )}
 %endif
 
-<h2>Data Manager</h2>
+<h2 id="data-managers-title">Data Manager</h2>
 
 %if view_only:
     <p>Not implemented</p>
@@ -21,7 +21,7 @@
             <ul>
             %for data_manager_id, data_manager in sorted( data_managers.data_managers.iteritems(), key=lambda x:x[1].name ):
                 <li>
-                    <a href="${ h.url_for( controller='tool_runner', action='index', tool_id=data_manager.tool.id ) }"><strong>${ data_manager.name | h }</strong></a> - ${ data_manager.description | h }
+                    <a href="${ h.url_for( controller='root', tool_id=data_manager.tool.id ) }" target="_blank"><strong>${ data_manager.name | h }</strong></a> - ${ data_manager.description | h }
                 </li>
                 <p/>
             %endfor
@@ -67,4 +67,4 @@
     <br/>
 %endif
 
-${render_msg( 'To find out more information about Data Managers, please visit the <a href="https://wiki.galaxyproject.org/Admin/Tools/DataManagers" target="_blank">wiki.</a>', "info" ) }
+${render_msg( 'To find out more information about Data Managers, please visit the <a href="https://galaxyproject.org/admin/tools/data-managers/" target="_blank">wiki.</a>', "info" ) }

@@ -1,19 +1,18 @@
-import time
 import inspect
-import threading
-import os
-
-from galaxy.model.orm import ConnectionProxy
-
 import logging
+import os
+import threading
+import time
 
-log = logging.getLogger( __name__ )
+from sqlalchemy.interfaces import ConnectionProxy
+
+log = logging.getLogger(__name__)
 
 wd = os.getcwd()
 
 
-def stripwd( s ):
-    if s.startswith( wd ):
+def stripwd(s):
+    if s.startswith(wd):
         return s[len(wd):]
     return s
 
@@ -21,7 +20,7 @@ def stripwd( s ):
 def pretty_stack():
     rval = []
     for frame, fname, line, funcname, _, _ in inspect.stack()[2:]:
-        rval.append( "%s:%s@%d" % ( stripwd( fname ), funcname, line ) )
+        rval.append("%s:%s@%d" % (stripwd(fname), funcname, line))
     return rval
 
 
@@ -50,8 +49,8 @@ class LoggingProxy(ConnectionProxy):
         start = time.clock()
         rval = execute(cursor, statement, parameters, context)
         duration = time.clock() - start
-        log.debug( "statement: %r parameters: %r executemany: %r duration: %r stack: %r thread: %r",
-                   statement, parameters, executemany, duration, " > ".join( pretty_stack() ), thread_ident )
+        log.debug("statement: %r parameters: %r executemany: %r duration: %r stack: %r thread: %r",
+                  statement, parameters, executemany, duration, " > ".join(pretty_stack()), thread_ident)
         return rval
 
 
@@ -59,7 +58,8 @@ class TraceLoggerProxy(ConnectionProxy):
     """
     Logs SQL statements using a metlog client
     """
-    def __init__( self, trace_logger ):
+
+    def __init__(self, trace_logger):
         self.trace_logger = trace_logger
 
     def cursor_execute(self, execute, cursor, statement, parameters, context, executemany):

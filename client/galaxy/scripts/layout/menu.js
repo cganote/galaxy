@@ -53,6 +53,7 @@ var Collection = Backbone.Collection.extend({
         this.add({
             id: "visualization",
             title: _l("Visualize"),
+            url: "visualizations/list",
             tooltip: _l("Visualize datasets"),
             disabled: !Galaxy.user.id,
             menu: [
@@ -64,6 +65,11 @@ var Collection = Backbone.Collection.extend({
                     title: _l("Interactive Environments"),
                     url: "visualization/gie_list",
                     target: "galaxy_main"
+                },
+                {
+                    title: _l("Saved Visualizations"),
+                    url: "visualizations/list",
+                    target: "_frame"
                 }
             ]
         });

@@ -1,20 +1,19 @@
 import os
 from contextlib import contextmanager
-
 from unittest import TestCase
-from galaxy.model import Job
-from galaxy.model import Task
-from galaxy.model import User
-from galaxy.jobs import JobWrapper
-from galaxy.jobs import TaskWrapper
-from galaxy.util.bunch import Bunch
 
+from galaxy.jobs import (
+    JobWrapper,
+    TaskWrapper
+)
+from galaxy.model import (
+    Job,
+    Task,
+    User
+)
 from galaxy.tools import evaluation
-
-from tools_support import UsesApp
-#from tools_support import MockTool
-
-#from ..tools_and_jobs_helpers import MockApp
+from galaxy.util.bunch import Bunch
+from ..tools_support import UsesApp
 
 TEST_TOOL_ID = "cufftest"
 TEST_VERSION_COMMAND = "bwa --version"
@@ -104,7 +103,7 @@ class MockEvaluator(object):
         pass
 
     def build(self):
-        return TEST_COMMAND, []
+        return TEST_COMMAND, [], []
 
 
 class MockJobQueue(object):
@@ -121,26 +120,6 @@ class MockJobDispatcher(object):
 
     def url_to_destination(self):
         pass
-
-
-class MockApp(object):
-
-    def __init__(self, object_store, test_directory, model_objects):
-        self.object_store = object_store
-        self.toolbox = MockToolbox(MockTool(self))
-        self.config = Bunch(
-            outputs_to_working_directory=False,
-            new_file_path=os.path.join(test_directory, "new_files"),
-            tool_data_path=os.path.join(test_directory, "tools"),
-            root=os.path.join(test_directory, "galaxy"),
-            datatypes_registry=Bunch(
-                integrated_datatypes_configs=os.path.join(test_directory, "datatypes_conf.xml"),
-            ),
-        )
-        self.job_config = Bunch(
-            dynamic_params=None,
-        )
-        self.model = Bunch(context=MockContext(model_objects))
 
 
 class MockContext(object):
@@ -180,8 +159,11 @@ class MockTool(object):
 
     def __init__(self, app):
         self.version_string_cmd = TEST_VERSION_COMMAND
+        self.tool_dir = "/path/to/tools"
+        self.dependencies = []
+        self.requires_galaxy_python_environment = False
 
-    def build_dependency_shell_commands(self):
+    def build_dependency_shell_commands(self, job_directory):
         return TEST_DEPENDENCIES_COMMANDS
 
 
@@ -194,7 +176,7 @@ class MockToolbox(object):
         assert tool_id == TEST_TOOL_ID
         return self.test_tool
 
-    def get_tool( self, tool_id, tool_version, exact=False ):
+    def get_tool(self, tool_id, tool_version, exact=False):
         tool = self.get(tool_id)
         return tool
 
@@ -214,8 +196,8 @@ class MockObjectStore(object):
         return None
 
 
-## Poor man's mocking. Need to get a real mocking library as real Galaxy development
-## dependnecy.
+# Poor man's mocking. Need to get a real mocking library as real Galaxy development
+# dependnecy.
 @contextmanager
 def _mock_tool_evaluator(mock_constructor):
     name = evaluation.ToolEvaluator.__name__

@@ -446,18 +446,6 @@
 :Type: str
 
 
-~~~~~~~~~~~~~~~~~~~
-``watch_job_rules``
-~~~~~~~~~~~~~~~~~~~
-
-:Description:
-    Set to True to enable monitoring of dynamic job rules. If changes
-    are found, rules are automatically reloaded. Takes the same values
-    as the 'watch_tools' option.
-:Default: ``false``
-:Type: str
-
-
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ``enable_beta_mulled_containers``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -846,8 +834,8 @@
 
 :Description:
     Citation related caching.  Tool citations information maybe
-    fetched from external sources such as https://doi.org/ by Galaxy -
-    the following parameters can be used to control the caching used
+    fetched from external sources such as http://dx.doi.org/ by Galaxy
+    - the following parameters can be used to control the caching used
     to store this information.
 :Default: ``file``
 :Type: str
@@ -859,8 +847,8 @@
 
 :Description:
     Citation related caching.  Tool citations information maybe
-    fetched from external sources such as https://doi.org/ by Galaxy -
-    the following parameters can be used to control the caching used
+    fetched from external sources such as http://dx.doi.org/ by Galaxy
+    - the following parameters can be used to control the caching used
     to store this information.
 :Default: ``database/citations/data``
 :Type: str
@@ -872,8 +860,8 @@
 
 :Description:
     Citation related caching.  Tool citations information maybe
-    fetched from external sources such as https://doi.org/ by Galaxy -
-    the following parameters can be used to control the caching used
+    fetched from external sources such as http://dx.doi.org/ by Galaxy
+    - the following parameters can be used to control the caching used
     to store this information.
 :Default: ``database/citations/lock``
 :Type: str
@@ -2182,6 +2170,54 @@
 :Type: bool
 
 
+~~~~~~~~~~~~~~~~~
+``graphite_host``
+~~~~~~~~~~~~~~~~~
+
+:Description:
+    Log to graphite Graphite is an external statistics aggregator
+    (https://github.com/graphite-project/carbon) Enabling the
+    following options will cause galaxy to log request timing and
+    other statistics to the configured graphite instance. The
+    graphite_prefix is useful if you are running multiple Galaxy
+    instances and want to segment statistics between them within the
+    same aggregator.
+:Default: ``None``
+:Type: str
+
+
+~~~~~~~~~~~~~~~~~
+``graphite_port``
+~~~~~~~~~~~~~~~~~
+
+:Description:
+    Log to graphite Graphite is an external statistics aggregator
+    (https://github.com/graphite-project/carbon) Enabling the
+    following options will cause galaxy to log request timing and
+    other statistics to the configured graphite instance. The
+    graphite_prefix is useful if you are running multiple Galaxy
+    instances and want to segment statistics between them within the
+    same aggregator.
+:Default: ``2003``
+:Type: int
+
+
+~~~~~~~~~~~~~~~~~~~
+``graphite_prefix``
+~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Log to graphite Graphite is an external statistics aggregator
+    (https://github.com/graphite-project/carbon) Enabling the
+    following options will cause galaxy to log request timing and
+    other statistics to the configured graphite instance. The
+    graphite_prefix is useful if you are running multiple Galaxy
+    instances and want to segment statistics between them within the
+    same aggregator.
+:Default: ``galaxy``
+:Type: str
+
+
 ~~~~~~~~~~~~~~~~~~~~~~
 ``library_import_dir``
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -2440,11 +2476,10 @@
     Galaxy encodes various internal values when these values will be
     output in some format (for example, in a URL or cookie).  You
     should set a key to be used by the algorithm that encodes and
-    decodes these values. It can be any string with a length between 5
-    and 56 bytes. One simple way to generate a value for this is with
-    the shell command:   python -c 'from __future__ import
-    print_function; import time; print(time.time())' | md5sum | cut -f
-    1 -d ' '
+    decodes these values.  It can be any string up to 448 bits long.
+    One simple way to generate a value for this is with the shell
+    command:   python -c 'from __future__ import print_function;
+    import time; print(time.time())' | md5sum | cut -f 1 -d ' '
 :Default: ``USING THE DEFAULT IS NOT SECURE!``
 :Type: str
 

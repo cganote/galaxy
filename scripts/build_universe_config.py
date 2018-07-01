@@ -1,8 +1,9 @@
-from ConfigParser import ConfigParser
 from os import listdir
 from os.path import join
 from re import match
 from sys import argv
+
+from six.moves.configparser import ConfigParser
 
 
 def merge():
@@ -20,14 +21,15 @@ def merge():
     parser = ConfigParser()
     for conf_file in conf_files:
         parser.read([join(conf_directory, conf_file)])
-    ## TODO: Expand enviroment variables here, that would
-    ## also make Galaxy much easier to configure. 
+    # TODO: Expand enviroment variables here, that would
+    # also make Galaxy much easier to configure.
 
-    destination= "config/galaxy.ini"
+    destination = "config/galaxy.ini"
     if len(argv) > 2:
         destination = argv[2]
 
     parser.write(open(destination, 'w'))
+
 
 if __name__ == '__main__':
     merge()

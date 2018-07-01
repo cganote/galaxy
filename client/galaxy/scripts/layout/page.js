@@ -1,4 +1,3 @@
-import Data from "layout/data";
 import Masthead from "layout/masthead";
 import Panel from "layout/panel";
 import Modal from "mvc/ui/ui-modal";
@@ -24,7 +23,6 @@ var View = Backbone.View.extend({
         // attach global objects, build mastheads
         Galaxy.modal = this.modal = new Modal.View();
         Galaxy.router = this.router = options.Router && new options.Router(self, options);
-        Galaxy.data = this.data = new Data(this);
         this.masthead = new Masthead.View(this.config);
         this.center = new Panel.CenterPanel();
 
@@ -168,11 +166,9 @@ var View = Backbone.View.extend({
                 <div id="masthead"/>
                 <div id="messagebox"/>
                 <div id="inactivebox" class="panel-warning-message" />
-                <div id="columns">
-                    <div id="left" />
-                    <div id="center" />
-                    <div id="right" />
-                </div>
+                <div id="left" />
+                <div id="center" />
+                <div id="right" />
             </div>
             <div id="dd-helper" />`
         ].join("");

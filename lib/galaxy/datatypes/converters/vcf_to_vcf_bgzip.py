@@ -7,10 +7,10 @@ Original ordering, which may be specifically needed  by tools or external displa
 
 usage: %prog in_file out_file
 """
+import optparse
 
-from galaxy import eggs
-import pkg_resources; pkg_resources.require( "pysam" )
-import ctabix, optparse
+import pysam
+
 
 def main():
     # Read options, args.
@@ -18,7 +18,8 @@ def main():
     (options, args) = parser.parse_args()
     input_fname, output_fname = args
 
-    ctabix.tabix_compress(input_fname, output_fname, force=True)
+    pysam.tabix_compress(input_fname, output_fname, force=True)
+
 
 if __name__ == "__main__":
     main()

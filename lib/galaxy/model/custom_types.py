@@ -3,20 +3,30 @@ import copy
 import json
 import logging
 import uuid
+from collections import deque
+from itertools import chain
+from sys import getsizeof
 
-from galaxy import eggs
-eggs.require("SQLAlchemy")
 import sqlalchemy
-
-from galaxy.util.aliaspickler import AliasPickleModule
-from sqlalchemy.types import CHAR, LargeBinary, String, TypeDecorator
 from sqlalchemy.ext.mutable import Mutable
+from sqlalchemy.types import (
+    CHAR,
+    LargeBinary,
+    String,
+    TypeDecorator
+)
 
-log = logging.getLogger( __name__ )
+from galaxy.util import unicodify
+from galaxy.util.aliaspickler import AliasPickleModule
+
+log = logging.getLogger(__name__)
 
 # Default JSON encoder and decoder
-json_encoder = json.JSONEncoder( sort_keys=True )
-json_decoder = json.JSONDecoder( )
+json_encoder = json.JSONEncoder(sort_keys=True)
+json_decoder = json.JSONDecoder()
+
+# Galaxy app will set this if configured to avoid circular dependency
+MAX_METADATA_VALUE_SIZE = None
 
 
 def _sniffnfix_pg9_hex(value):
@@ -26,8 +36,8 @@ def _sniffnfix_pg9_hex(value):
     try:
         if value[0] == 'x':
             return binascii.unhexlify(value[1:])
-        elif value.startswith( '\\x' ):
-            return binascii.unhexlify( value[2:] )
+        elif value.startswith('\\x'):
+            return binascii.unhexlify(value[2:])
         else:
             return value
     except Exception:
@@ -54,7 +64,7 @@ class JSONType(sqlalchemy.types.TypeDecorator):
 
     def process_result_value(self, value, dialect):
         if value is not None:
-            value = json_decoder.decode( str( _sniffnfix_pg9_hex( value ) ) )
+            value = json_decoder.decode(unicodify(_sniffnfix_pg9_hex(value)))
         return value
 
     def load_dialect_impl(self, dialect):
@@ -63,11 +73,11 @@ class JSONType(sqlalchemy.types.TypeDecorator):
         else:
             return self.impl
 
-    def copy_value( self, value ):
-        return copy.deepcopy( value )
+    def copy_value(self, value):
+        return copy.deepcopy(value)
 
-    def compare_values( self, x, y ):
-        return ( x == y )
+    def compare_values(self, x, y):
+        return (x == y)
 
 
 class MutationObj(Mutable):
@@ -99,7 +109,7 @@ class MutationObj(Mutable):
 
         def load(state, *args):
             val = state.dict.get(key, None)
-            if coerce:
+            if coerce and key not in state.unloaded:
                 val = cls.coerce(key, val)
                 state.dict[key] = val
             if isinstance(val, cls):
@@ -212,28 +222,80 @@ class MutationList(MutationObj, list):
 
 MutationObj.associate_with(JSONType)
 
-metadata_pickler = AliasPickleModule( {
-    ( "cookbook.patterns", "Bunch" ): ( "galaxy.util.bunch", "Bunch" )
-} )
+metadata_pickler = AliasPickleModule({
+    ("cookbook.patterns", "Bunch"): ("galaxy.util.bunch", "Bunch")
+})
 
 
-class MetadataType( JSONType ):
+def total_size(o, handlers={}, verbose=False):
+    """ Returns the approximate memory footprint an object and all of its contents.
+
+    Automatically finds the contents of the following builtin containers and
+    their subclasses:  tuple, list, deque, dict, set and frozenset.
+    To search other containers, add handlers to iterate over their contents:
+
+        handlers = {SomeContainerClass: iter,
+                    OtherContainerClass: OtherContainerClass.get_elements}
+
+    Recipe from:  https://code.activestate.com/recipes/577504-compute-memory-footprint-of-an-object-and-its-cont/
+    """
+    def dict_handler(d):
+        return chain.from_iterable(d.items())
+
+    all_handlers = {tuple: iter,
+                    list: iter,
+                    deque: iter,
+                    dict: dict_handler,
+                    set: iter,
+                    frozenset: iter}
+    all_handlers.update(handlers)     # user handlers take precedence
+    seen = set()                      # track which object id's have already been seen
+    default_size = getsizeof(0)       # estimate sizeof object without __sizeof__
+
+    def sizeof(o):
+        if id(o) in seen:       # do not double count the same object
+            return 0
+        seen.add(id(o))
+        s = getsizeof(o, default_size)
+
+        for typ, handler in all_handlers.items():
+            if isinstance(o, typ):
+                s += sum(map(sizeof, handler(o)))
+                break
+        return s
+
+    return sizeof(o)
+
+
+class MetadataType(JSONType):
     """
     Backward compatible metadata type. Can read pickles or JSON, but always
     writes in JSON.
     """
-    def process_result_value( self, value, dialect ):
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            if MAX_METADATA_VALUE_SIZE is not None:
+                for k, v in list(value.items()):
+                    sz = total_size(v)
+                    if sz > MAX_METADATA_VALUE_SIZE:
+                        del value[k]
+                        log.warning('Refusing to bind metadata key %s due to size (%s)' % (k, sz))
+            value = json_encoder.encode(value)
+        return value
+
+    def process_result_value(self, value, dialect):
         if value is None:
             return None
         ret = None
         try:
-            ret = metadata_pickler.loads( str( value ) )
+            ret = metadata_pickler.loads(str(value))
             if ret:
-                ret = dict( ret.__dict__ )
-        except:
+                ret = dict(ret.__dict__)
+        except Exception:
             try:
-                ret = json_decoder.decode( str( _sniffnfix_pg9_hex(value) ) )
-            except:
+                ret = json_decoder.decode(str(_sniffnfix_pg9_hex(value)))
+            except Exception:
                 ret = None
         return ret
 
@@ -269,10 +331,10 @@ class UUIDType(TypeDecorator):
             return uuid.UUID(value)
 
 
-class TrimmedString( TypeDecorator ):
+class TrimmedString(TypeDecorator):
     impl = String
 
-    def process_bind_param( self, value, dialect ):
+    def process_bind_param(self, value, dialect):
         """Automatically truncate string values"""
         if self.impl.length and value is not None:
             value = value[0:self.impl.length]

@@ -1,7 +1,9 @@
 import json
 
+
 class Node(object):
     """Node class of PhyloTree, which represents a CLAUDE in a phylogenetic tree"""
+
     def __init__(self, nodeName, **kwargs):
         """Creates a node and adds in the typical annotations"""
         self.name, self.id = nodeName, kwargs.get("id", 0)
@@ -23,10 +25,8 @@ class Node(object):
         else:
             self.children += child
 
-
     def __str__(self):
         return self.name + " id:" + str(self.id) + ", depth: " + str(self.depth)
-
 
     def toJson(self):
         """Converts the data in the node to a dict representation of json"""
@@ -44,19 +44,17 @@ class Node(object):
         """Needs a special method to addChildren, such that the key does not appear in the Jsondict when the children is empty
         this requirement is due to the layout algorithm used by d3 layout for hiding subtree """
         if len(self.children) > 0:
-            children = [ node.toJson() for node in self.children]
+            children = [node.toJson() for node in self.children]
             jsonDict["children"] = children
         return jsonDict
-
 
     def addMiscToJson(self, jsonDict):
         """Adds other misc attributes to json if they are present"""
         if not self.events == "":
             jsonDict["events"] = self.events
-        if not self.bootstrap == None:
+        if self.bootstrap is not None:
             jsonDict["bootstrap"] = self.bootstrap
         return jsonDict
-
 
 
 class PhyloTree(object):
@@ -100,7 +98,6 @@ class PhyloTree(object):
         else:
             raise Exception("Root is not assigned!")
         return jsonTree
-
 
 
 class Base_Parser(object):

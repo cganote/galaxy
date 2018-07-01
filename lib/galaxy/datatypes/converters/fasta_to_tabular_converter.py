@@ -10,10 +10,11 @@
 Input: fasta
 Output: tabular
 """
-
-import sys, os
+import os
+import sys
 
 seq_hash = {}
+
 
 def __main__():
     infile = sys.argv[1]
@@ -46,4 +47,5 @@ def __main__():
                 out.write("".join(sequence.split()) + '\n')
 
 
-if __name__ == "__main__" : __main__()
+if __name__ == "__main__" :
+    __main__()

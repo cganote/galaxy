@@ -1,16 +1,18 @@
 #!/usr/bin/env python
-
 """
 Script that imports locally stored data as a new dataset for the user
 Usage: import id outputfile
 """
-import sys, os
+from __future__ import print_function
 
-assert sys.version_info[:2] >= ( 2, 4 )
+import os
+import sys
+
+assert sys.version_info[:2] >= (2, 6)
 
 BUFFER = 1048576
 
-dataid   = sys.argv[1]
+dataid = sys.argv[1]
 out_name = sys.argv[2]
 
 
@@ -30,23 +32,22 @@ id2name = {
     'phastConsHg16' : 'phastConsMost_hg16.bed',
     'omimhg16'      : 'omimDisorders_hg16.tab',
     'omimhg17'      : 'omimDisorders_hg17.tab',
-
 }
 
 fname = id2name.get(dataid, '')
 if not fname:
-    print 'Importing invalid data %s' % dataid
+    print('Importing invalid data %s' % dataid)
     sys.exit()
 else:
-    print 'Imported %s' % fname
+    print('Imported %s' % fname)
 
 # this path is hardcoded
 inp_name = os.path.join('database', 'import', fname)
 
 try:
     inp = open(inp_name, 'rt')
-except:
-    print 'Could not find file %s' % inp_name
+except Exception:
+    print('Could not find file %s' % inp_name)
     sys.exit()
 
 out = open(out_name, 'wt')

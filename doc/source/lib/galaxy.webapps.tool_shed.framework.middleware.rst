@@ -1,27 +1,20 @@
-middleware Package
-==================
-
-:mod:`middleware` Package
--------------------------
+galaxy\.webapps\.tool\_shed\.framework\.middleware package
+==========================================================
 
 .. automodule:: galaxy.webapps.tool_shed.framework.middleware
     :members:
     :undoc-members:
     :show-inheritance:
 
-:mod:`hg` Module
-----------------
+Submodules
+----------
 
-.. automodule:: galaxy.webapps.tool_shed.framework.middleware.hg
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-:mod:`remoteuser` Module
-------------------------
+galaxy\.webapps\.tool\_shed\.framework\.middleware\.remoteuser module
+---------------------------------------------------------------------
 
 .. automodule:: galaxy.webapps.tool_shed.framework.middleware.remoteuser
     :members:
     :undoc-members:
     :show-inheritance:
+
 

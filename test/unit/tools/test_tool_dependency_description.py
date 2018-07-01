@@ -1,6 +1,8 @@
 from galaxy.model import tool_shed_install
-from galaxy.tools.deps import requirements
-from galaxy.tools.deps import dependencies
+from galaxy.tools.deps import (
+    dependencies,
+    requirements
+)
 
 
 def test_serialization():
@@ -41,4 +43,3 @@ def test_serialization():
     result_tool_shed_repository.name = "tophat"
     result_tool_shed_repository.owner = "devteam"
     result_tool_shed_repository.installed_changeset_revision = "abcdefghijk"
-

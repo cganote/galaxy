@@ -74,21 +74,11 @@
         sharable_link_label = 'Sharable link to this repository revision:'
         sharable_link_changeset_revision = changeset_revision
 
-    if repository_metadata is None:
-        can_render_skip_tool_test_section = False
-    else:
-        if repository_metadata.changeset_revision is None:
-            can_render_skip_tool_test_section = False
-        else:
-            if includes_tools or repository.type == TOOL_DEPENDENCY_DEFINITION:
-                can_render_skip_tool_test_section = True
-            else:
-                can_render_skip_tool_test_section = False
     if heads:
         multiple_heads = len( heads ) > 1
     else:
         multiple_heads = False
-    
+
     if repository_metadata is None:
         revision_installable = False
     else:
@@ -135,14 +125,13 @@ ${render_tool_shed_repository_actions( repository, metadata=metadata, changeset_
 %if deprecated_repository_dependency_tups:
     ${render_deprecated_repository_dependencies_message( deprecated_repository_dependency_tups )}
 %endif
-
 %if len( changeset_revision_select_field.options ) > 1:
     <div class="toolForm">
         <div class="toolFormTitle">Repository revision</div>
         <div class="toolFormBody">
             <form name="change_revision" id="change_revision" action="${h.url_for( controller='repository', action='manage_repository', id=trans.security.encode_id( repository.id ) )}" method="post" >
                 <div class="form-row">
-                    ${changeset_revision_select_field.get_html()} <i>${tip_str}</i>
+                    ${render_select(changeset_revision_select_field)} <i>${tip_str}</i>
                     <div class="toolParamHelp" style="clear: both;">
                         %if can_review_repository:
                             Select a revision to inspect for adding or managing a review or for download or installation.
@@ -190,30 +179,34 @@ ${render_tool_shed_repository_actions( repository, metadata=metadata, changeset_
                 %endif
                 <div style="clear: both"></div>
             </div>
-            %if repository.homepage_url:
             <div class="form-row">
                 <b>Content homepage:</b>
-                <input name="homepage_url" type="textfield" value="${homepage_url | h}" size="80"/>
+                %if repository.homepage_url:
+                    <input name="homepage_url" type="textfield" value="${homepage_url | h}" size="80"/>
+                %else:
+                    <input name="homepage_url" type="textfield" value="" size="80"/>
+                %endif
                 <div style="clear: both"></div>
             </div>
-            %endif
-            %if repository.remote_repository_url:
             <div class="form-row">
                 <b>Development repository:</b>
-                <input name="remote_repository_url" type="textfield" value="${remote_repository_url | h}" size="80"/>
+                %if repository.remote_repository_url:
+                    <input name="remote_repository_url" type="textfield" value="${remote_repository_url | h}" size="80"/>
+                %else:
+                    <input name="remote_repository_url" type="textfield" value="" size="80"/>
+                %endif
                 <div style="clear: both"></div>
             </div>
-            %endif
             <div class="form-row">
                 <b>${sharable_link_label}</b>
                 <a href="${ repository.share_url }" target="_blank">${ repository.share_url }</a>
-                <button title="to clipboard" class="btn btn-default btn-xs" id="share_clipboard"><span class="fa fa-clipboard"></span></button>
+                <button title="to clipboard" class="btn btn-secondary btn-sm" id="share_clipboard"><span class="fa fa-clipboard"></span></button>
             </div>
             %if can_download or can_push:
                 <div class="form-row">
                     <b>Clone this repository:</b>
-                    <code>hg clone ${ repository.clone_url }</code>
-                    <button title="to clipboard" class="btn btn-default btn-xs" id="clone_clipboard"><span class="fa fa-clipboard"></span></button>
+                    <code>hg clone <a title="Show in mercurial browser" href="${ repository.clone_url }">${ repository.clone_url }</a></code>
+                    <button title="to clipboard" class="btn btn-secondary btn-sm" id="clone_clipboard"><span class="fa fa-clipboard"></span></button>
                 </div>
             %endif
             ${render_repository_type_select_field( repository_type_select_field, render_help=True )}
@@ -250,48 +243,6 @@ ${render_tool_shed_repository_actions( repository, metadata=metadata, changeset_
     </div>
 </div>
 ${render_repository_items( metadata, containers_dict, can_set_metadata=True, render_repository_actions_for='tool_shed' )}
-%if can_render_skip_tool_test_section:
-    <p/>
-    <div class="toolForm">
-        %if repository.type == TOOL_DEPENDENCY_DEFINITION:
-            <div class="toolFormTitle">Automated tool dependency test</div>
-        %else:
-            <div class="toolFormTitle">Automated tool tests</div>
-        %endif
-        <div class="toolFormBody">
-            <form name="skip_tool_tests" id="skip_tool_tests" action="${h.url_for( controller='repository', action='manage_repository', id=trans.security.encode_id( repository.id ), changeset_revision=str( repository_metadata.changeset_revision ) )}" method="post" >
-                <div class="form-row">
-                    %if repository.type == TOOL_DEPENDENCY_DEFINITION:
-                        <label>Skip automated testing of this tool dependency recipe</label>
-                    %else:
-                        <label>Skip automated testing of tools in this revision:</label>
-                    %endif
-                    ${skip_tool_tests_check_box.get_html()}
-                    <div class="toolParamHelp" style="clear: both;">
-                        %if repository.type == TOOL_DEPENDENCY_DEFINITION:
-                            Check the box and click <b>Save</b> to skip automated testing of this tool dependency recipe.
-                        %else:
-                            Check the box and click <b>Save</b> to skip automated testing of the tools in this revision.
-                        %endif
-                    </div>
-                </div>
-                <div style="clear: both"></div>
-                <div class="form-row">
-                <label>Reason for skipping automated testing:</label>
-                %if skip_tool_test:
-                    <pre><textarea name="skip_tool_tests_comment" rows="3" cols="80">${skip_tool_test.comment | h}</textarea></pre>
-                %else:
-                    <textarea name="skip_tool_tests_comment" rows="3" cols="80"></textarea>
-                %endif
-                </div>
-                <div style="clear: both"></div>
-                <div class="form-row">
-                    <input type="submit" name="skip_tool_tests_button" value="Save"/>
-                </div>
-            </form>
-        </div>
-    </div>
-%endif
 <p/>
 <div class="toolForm">
     <div class="toolFormTitle">Manage categories</div>
@@ -327,7 +278,7 @@ ${render_repository_items( metadata, containers_dict, can_set_metadata=True, ren
             <form name="receive_email_alerts" id="receive_email_alerts" action="${h.url_for( controller='repository', action='manage_repository', id=trans.security.encode_id( repository.id ) )}" method="post" >
                 <div class="form-row">
                     <label>Receive email alerts:</label>
-                    ${alerts_check_box.get_html()}
+                    ${render_checkbox(alerts_check_box)}
                     <div class="toolParamHelp" style="clear: both;">
                         Check the box and click <b>Save</b> to receive email alerts when updates to this repository occur.
                     </div>
@@ -363,7 +314,7 @@ ${render_repository_items( metadata, containers_dict, can_set_metadata=True, ren
         <form name="user_access" id="user_access" action="${h.url_for( controller='repository', action='manage_repository', id=trans.security.encode_id( repository.id ) )}" method="post" >
             <div class="form-row">
                 <label>Username:</label>
-                ${allow_push_select_field.get_html()}
+                ${render_select(allow_push_select_field)}
                 <div class="toolParamHelp" style="clear: both;">
                     Multi-select usernames to grant permission to make changes to this repository
                 </div>
@@ -444,7 +395,7 @@ ${render_repository_items( metadata, containers_dict, can_set_metadata=True, ren
             <form name="malicious" id="malicious" action="${h.url_for( controller='repository', action='set_malicious', id=trans.security.encode_id( repository.id ), ctx_str=changeset_revision )}" method="post">
                 <div class="form-row">
                     <label>Define repository tip as malicious:</label>
-                    ${malicious_check_box.get_html()}
+                    ${render_checkbox(malicious_check_box)}
                     <div class="toolParamHelp" style="clear: both;">
                         Check the box and click <b>Save</b> to define this repository's tip as malicious, restricting it from being download-able.
                     </div>

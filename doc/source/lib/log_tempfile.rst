@@ -1,5 +1,5 @@
-log_tempfile Module
-===================
+log\_tempfile module
+====================
 
 .. automodule:: log_tempfile
     :members:

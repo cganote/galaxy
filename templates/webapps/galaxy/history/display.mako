@@ -2,7 +2,7 @@
 
 ## Set vars so that there's no need to change the code below.
 <%
-    history = published_item 
+    history = published_item
     datasets = published_item_data
 %>
 
@@ -13,21 +13,19 @@
 <%def name="stylesheets()">
     ${parent.stylesheets()}
     <style type="text/css">
-        .history-panel {
-            margin-top: 8px;
-        }
+
     </style>
 </%def>
 
 <%def name="render_item_links( history )">
 <%
     encoded_history_id = history_dict[ 'id' ]
-    import_url = h.url_for( controller='history', action='imp', id=encoded_history_id )
     switch_url = h.url_for( controller='history', action='switch_to_history', hist_id=encoded_history_id )
 %>
     ## Needed to overwide initial width so that link is floated left appropriately.
     %if not user_is_owner:
-    <a href="${import_url}" style="width: 100%" title="${_('Make a copy of this history and switch to it')}">
+    <a class="history-copy-link" title="${_('Make a copy of this history and switch to it')}"
+       href="javascript:void(0)" style="width: 100%" >
         ${_('Import history')}
     </a>
     %else:
@@ -41,29 +39,56 @@
 </%def>
 
 <%def name="render_item( history, datasets )">
-
-<div id="history-${ history_dict[ 'id' ] }" class="history-panel">
-</div>
+<div id="history-${ history_dict[ 'id' ] }" class="history-panel"></div>
 <script type="text/javascript">
-    var historyJSON  = ${h.dumps( history_dict )},
-        hdaJSON      = ${h.dumps( hda_dicts )};
+    var historyJSON  = ${h.dumps( history_dict )};
 
-    require.config({
-        baseUrl : "${h.url_for( '/static/scripts' )}",
-        urlArgs: 'v=${app.server_starttime}'
-    })([ 'mvc/history/history-panel-annotated' ], function( panelMod ){
-        // history module is already in the dpn chain from the panel. We can re-scope it here.
-        var historyModel = require( 'mvc/history/history-model' ),
-            history = new historyModel.History( historyJSON, hdaJSON, {
-            });
+    $( '.page-body' )
+        .css( 'height', '100%' )
+        .addClass( 'flex-vertical-container' );
 
-        window.historyPanel = new panelMod.AnnotatedHistoryPanel({
+    $(function(){
+        var HistoryContentsWithAnnotations = window.bundleEntries.HistoryContents.extend({
+            _buildFetchData : function( options ){
+                console.log( '_buildFetchData:' );
+                options = options || {};
+                if( !options.keys && !options.view ){
+                    options.view = 'summary';
+                    options.keys = 'annotation,tags';
+                }
+                return window.bundleEntries.HistoryContents.prototype._buildFetchData.call( this, options );
+            }
+        });
+        var HistoryWithAnnotations = window.bundleEntries.History.extend({
+            contentsClass : HistoryContentsWithAnnotations
+        });
+
+        var historyModel = new HistoryWithAnnotations( historyJSON, null, {
+            order           : 'hid-asc',
+        });
+
+        $( '.history-copy-link' ).click( function( ev ){
+            window.bundleEntries.HistoryCopyDialog( historyModel, { useImport: true, allowAll: false })
+                .done( function(){
+                    var mainWindow = ( window && ( window !== window.parent ) )? window.top : window;
+                    mainWindow.location.href = Galaxy.root;
+                });
+        });
+
+        window.historyView = new window.bundleEntries.HistoryViewAnnotated.AnnotatedHistoryView({
+            el              : $( "#history-" + historyJSON.id ),
+            className       : window.bundleEntries.HistoryViewAnnotated.AnnotatedHistoryView.prototype.className + ' wide',
+            model           : historyModel,
             show_deleted    : false,
             show_hidden     : false,
-            el              : $( "#history-" + historyJSON.id ),
-            model           : history
-        }).render();
-        console.debug( historyPanel.$el )
+        });
+        historyView.trigger( 'loading' );
+        historyModel.fetchContents({ silent: true })
+            .fail( function(){ alert( 'Galaxy history failed to load' ); })
+            .done( function(){
+                historyView.trigger( 'loading-done' );
+                historyView.render();
+            });
     });
 </script>
 </%def>

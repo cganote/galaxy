@@ -2,17 +2,30 @@
 <%namespace file="/message.mako" import="render_msg" />
 <%namespace file="/admin/tool_shed_repository/common.mako" import="*" />
 <%namespace file="/admin/tool_shed_repository/repository_actions_menu.mako" import="*" />
+<%namespace file="/webapps/tool_shed/common/common.mako" import="*" />
 
-${render_galaxy_repository_actions( repository )}
+<%
+repository = context.get( 'repository', None )
+if isinstance( repository, list ):
+    repositories = repository
+else:
+    repositories = [ repository ]
+%>
+
+%if len( repositories ) == 1:
+    ${render_galaxy_repository_actions( repositories[0] )}
+%endif
 
 %if message:
     ${render_msg( message, status )}
 %endif
 
 <div class="toolForm">
+<form name="deactivate_or_uninstall_repository" id="deactivate_or_uninstall_repository" action="${ h.url_for( controller='admin_toolshed', action='deactivate_or_uninstall_repository' ) }" method="post" >
+%for repository in repositories:
+    <input type="hidden" name="id" value="${ trans.security.encode_id( repository.id ) | h }" />
     <div class="toolFormTitle">${repository.name|h}</div>
     <div class="toolFormBody">
-        <form name="deactivate_or_uninstall_repository" id="deactivate_or_uninstall_repository" action="${h.url_for( controller='admin_toolshed', action='deactivate_or_uninstall_repository', id=trans.security.encode_id( repository.id ) )}" method="post" >
             <div class="form-row">
                 <label>Description:</label>
                 ${repository.description|h}
@@ -108,7 +121,7 @@ ${render_galaxy_repository_actions( repository )}
                     </div>
                     <div style="clear: both"></div>
                     <br/>
-                    <%                        
+                    <%
                         irm = trans.app.installed_repository_manager
                         repository_tup = irm.get_repository_tuple_for_installed_repository_manager( repository )
 
@@ -159,7 +172,7 @@ ${render_galaxy_repository_actions( repository )}
                                         owner = containing_repository.owner
                                     %>
                                     <li>
-                                        Version <b>${version | h}</b> of ${type | h} <b>${name | h}</b> contained in revision 
+                                        Version <b>${version | h}</b> of ${type | h} <b>${name | h}</b> contained in revision
                                         <b>${changeset_revision | h}</b> of repository <b>${repository_name | h}</b> owned by <b>${owner | h}</b>
                                     </li>
                                 %endfor
@@ -169,14 +182,16 @@ ${render_galaxy_repository_actions( repository )}
                     %endif
                 %endif
             </div>
+        </div>
+%endfor
             <div class="form-row">
                 <%
-                    can_deactivate_repository = repository.can_deactivate
-                    can_uninstall_repository = repository.can_uninstall
+                    can_deactivate_repository = True in map( lambda x: x.can_deactivate, repositories )
+                    can_uninstall_repository = True in map( lambda x: x.can_uninstall, repositories )
                 %>
                 %if can_deactivate_repository and can_uninstall_repository:
                     <% deactivate_uninstall_button_text = "Deactivate or Uninstall" %>
-                    ${remove_from_disk_check_box.get_html()}
+                    ${render_checkbox(remove_from_disk_check_box)}
                     <label for="remove_from_disk" style="display: inline;font-weight:normal;">Check to uninstall or leave blank to deactivate</label>
                     <br/><br/>
                 %elif can_deactivate_repository:
@@ -184,7 +199,7 @@ ${render_galaxy_repository_actions( repository )}
                 %else:
                     <% deactivate_uninstall_button_text = "Uninstall" %>
                     ##hack to mimic check box
-                    <input type="hidden" name="remove_from_disk" value="true"/><input type="hidden" name="remove_from_disk" value="true"/>
+                    <input type="hidden" name="remove_from_disk" value="true"/>
                 %endif
                 <input type="submit" name="deactivate_or_uninstall_repository_button" value="${deactivate_uninstall_button_text|h}"/>
             </div>
