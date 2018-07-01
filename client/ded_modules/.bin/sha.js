@@ -1,1 +1,0 @@
-../amdi18n-loader/node_modules/sha.js/bin.js
